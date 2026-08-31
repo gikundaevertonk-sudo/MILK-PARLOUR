@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Owner Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="no-print">
+        <span id="welcomeMsg"></span>
+        <button onclick="logout()">Logout</button>
+    </nav>
+
+    <div class="dashboard-grid no-print">
+        <button class="dashboard-btn" onclick="showSection('todaySection')">Today's Entries</button>
+        <button class="dashboard-btn" onclick="showSection('stockInSection')">Morning Stock-In</button>
+        <button class="dashboard-btn" onclick="showSection('productsSection')">Products</button>
+        <button class="dashboard-btn" onclick="showSection('shopsSection')">Shop Assignments</button>
+        <button class="dashboard-btn" onclick="showSection('reportsSection')">Reports</button>
+    </div>
+
+    <section id="todaySection" style="display:none;">
+        <h2>Today's Stock Entries</h2>
+        <table id="todayTable">
+            <thead>
+                <tr><th>Shop</th><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Secondary Qty Out</th><th>Sales Amount</th></tr>
+            </thead>
+            <tbody id="todayTableBody"></tbody>
+        </table>
+    </section>
+
+    <section id="stockInSection" style="display:none;">
+        <h2>Morning Stock-In</h2>
+        <label>Shop:
+            <select id="stockInShop"></select>
+        </label>
+        <div id="stockInProducts"></div>
+        <button onclick="saveStockIn()">Save Stock-In</button>
+        <p id="stockInMessage"></p>
+    </section>
+
+    <section id="productsSection" style="display:none;">
+        <h2>Products</h2>
+        <table id="productsTable">
+            <thead>
+                <tr><th>Name</th><th>Category</th><th>Unit</th><th>Price</th><th>Active</th><th>Action</th></tr>
+            </thead>
+            <tbody id="productsTableBody"></tbody>
+        </table>
+
+        <h3>Add New Product</h3>
+        <input type="text" id="newProductName" placeholder="Name">
+        <input type="text" id="newProductCategory" placeholder="Category">
+        <input type="text" id="newProductUnit" placeholder="Unit label (e.g. Liters)">
+        <input type="number" id="newProductPrice" placeholder="Unit price" step="0.01">
+        <label><input type="checkbox" id="newProductTrackIn"> Track quantity in</label>
+        <label><input type="checkbox" id="newProductTrackOut"> Track quantity out</label>
+        <label><input type="checkbox" id="newProductTrackSales" checked> Track sales amount</label>
+        <button onclick="addProduct()">Add Product</button>
+        <p id="productMessage"></p>
+    </section>
+
+    <section id="shopsSection" style="display:none;">
+        <h2>Shop Assignments</h2>
+        <table id="shopUsersTable">
+            <thead>
+                <tr><th>Display Name</th><th>Username</th><th>Shop</th><th>Action</th></tr>
+            </thead>
+            <tbody id="shopUsersTableBody"></tbody>
+        </table>
+    </section>
+
+    <section id="reportsSection" style="display:none;">
+        <h2 class="no-print">Reports</h2>
+        <div class="no-print">
+            <label>Start date: <input type="date" id="reportStart"></label>
+            <label>End date: <input type="date" id="reportEnd"></label>
+            <button onclick="generateReport()">Generate</button>
+            <button onclick="window.print()">Print / Save as PDF</button>
+        </div>
+
+        <div id="reportPrintHeader" style="display:none;">
+            <h1>Milk Parlor Sales Report</h1>
+            <p id="reportRangeText"></p>
+        </div>
+
+        <table id="reportTable">
+            <thead>
+                <tr><th>Shop</th><th>Product</th><th>Total Sales Amount</th></tr>
+            </thead>
+            <tbody id="reportTableBody"></tbody>
+        </table>
+        <h3>Grand Total: <span id="reportGrandTotal">0.00</span></h3>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+    <script src="session.js"></script>
+    <script src="owner.js"></script>
+</body>
+</html>
