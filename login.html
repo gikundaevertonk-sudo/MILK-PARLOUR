@@ -16,7 +16,10 @@
             <input type="text" id="username" required>
 
             <label for="password">Password</label>
-            <input type="password" id="password" required>
+            <div class="password-field">
+                <input type="password" id="password" required>
+                <button class="password-toggle" type="button" data-password-toggle="password" aria-label="Show password" aria-pressed="false" title="Show password">&#128065;</button>
+            </div>
 
             <button type="submit">Login</button>
         </form>

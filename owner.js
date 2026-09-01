@@ -194,6 +194,13 @@ async function loadShopAssignments() {
             <td><span class="viewMode">${u.display_name}</span><input class="editMode" style="display:none" type="text" id="editDisplayName_${u.user_id}" value="${u.display_name}"></td>
             <td><span class="viewMode">${u.username}</span><input class="editMode" style="display:none" type="text" id="editUsername_${u.user_id}" value="${u.username}"></td>
             <td>
+                <span class="viewMode">Set when needed</span>
+                <div class="password-field editMode" style="display:none">
+                    <input type="password" id="editPassword_${u.user_id}" placeholder="New password" autocomplete="new-password">
+                    <button class="password-toggle" type="button" onclick="toggleOwnerPassword(${u.user_id}, this)" aria-label="Show new password" aria-pressed="false" title="Show new password">&#128065;</button>
+                </div>
+            </td>
+            <td>
                 <span class="viewMode">${shops.find(s => s.shop_id === u.shop_id)?.name ?? "None"}</span>
                 <select class="editMode" style="display:none" id="editShop_${u.user_id}">
                     ${shops.map(s => `<option value="${s.shop_id}" ${s.shop_id === u.shop_id ? "selected" : ""}>${s.name}</option>`).join("")}
@@ -214,16 +221,41 @@ function toggleUserEdit(userId, editing) {
     row.querySelectorAll(".editMode").forEach(el => el.style.display = editing ? "" : "none");
 }
 
+function toggleOwnerPassword(userId, button) {
+    const input = document.getElementById(`editPassword_${userId}`);
+    const isVisible = input.type === "text";
+    input.type = isVisible ? "password" : "text";
+    button.setAttribute("aria-label", isVisible ? "Show new password" : "Hide new password");
+    button.setAttribute("title", isVisible ? "Show new password" : "Hide new password");
+    button.setAttribute("aria-pressed", String(!isVisible));
+}
+
 async function saveUserEdit(userId) {
     const displayName = document.getElementById(`editDisplayName_${userId}`).value.trim();
     const username = document.getElementById(`editUsername_${userId}`).value.trim();
     const shopId = document.getElementById(`editShop_${userId}`).value;
+    const password = document.getElementById(`editPassword_${userId}`).value;
 
-    await supabaseClient.from("users").update({
+    if (!displayName || !username) {
+        alert("Display name and login name are required.");
+        return;
+    }
+
+    const updates = {
         display_name: displayName,
-        username: username,
+        username,
         shop_id: shopId
-    }).eq("user_id", userId);
+    };
+
+    if (password) {
+        updates.password = password;
+    }
+
+    const { error } = await supabaseClient.from("users").update(updates).eq("user_id", userId);
+    if (error) {
+        alert("Unable to save login details. Please check the username and password.");
+        return;
+    }
 
     loadShopAssignments();
 }

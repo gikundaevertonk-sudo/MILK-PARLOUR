@@ -1,3 +1,16 @@
+document.querySelectorAll("[data-password-toggle]").forEach(button => {
+    button.addEventListener("click", () => togglePasswordVisibility(button.dataset.passwordToggle, button));
+});
+
+function togglePasswordVisibility(inputId, button) {
+    const input = document.getElementById(inputId);
+    const isVisible = input.type === "text";
+    input.type = isVisible ? "password" : "text";
+    button.setAttribute("aria-label", isVisible ? "Show password" : "Hide password");
+    button.setAttribute("title", isVisible ? "Show password" : "Hide password");
+    button.setAttribute("aria-pressed", String(!isVisible));
+}
+
 document.getElementById("loginForm").addEventListener("submit", async function (e) {
     e.preventDefault();
 

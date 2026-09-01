@@ -80,6 +80,22 @@ input:focus, select:focus {
 
 input[type="checkbox"] { min-height: auto; accent-color: var(--accent); }
 .login-box input { width: 100%; }
+.password-field { display: flex; align-items: stretch; gap: 6px; margin-top: 5px; }
+.password-field input { min-width: 0; flex: 1; margin-top: 0; }
+.password-field .password-toggle {
+    display: grid;
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    place-items: center;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #b8c9c0;
+    color: var(--ink);
+    background: #f7faf7;
+    font-size: 18px;
+}
+.password-field .password-toggle:hover { background: #e7f0e9; }
 
 button:not(.dashboard-btn):not(.logout-button) {
     margin-top: 14px;
@@ -187,8 +203,10 @@ td input, td select { width: 100%; min-width: 100px; }
     .mobile-header { display: grid; grid-template-columns: 1fr auto; margin: -20px -16px 20px; padding: 14px 16px; background: var(--ink); }
     .mobile-header .brand { min-width: 0; font-size: 18px; white-space: nowrap; }
     .mobile-header .logout-button { margin: 0; padding: 7px 10px; font-size: 14px; white-space: nowrap; }
-    .mobile-dashboard-nav { display: flex; grid-column: 1 / -1; width: 100%; justify-content: flex-start; gap: 6px; overflow-x: auto; padding: 14px 0 0; }
-    .mobile-dashboard-nav .dashboard-btn { flex: 0 0 auto; padding: 8px 10px; border: 1px solid rgba(255, 255, 255, 0.28); color: #d9e8e1; }
+    .mobile-dashboard-nav { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 6px; padding: 14px 0 0; }
+    .mobile-dashboard-nav .dashboard-btn { padding: 9px 8px; border: 1px solid rgba(255, 255, 255, 0.28); color: #d9e8e1; text-align: center; }
+    .mobile-dashboard-nav .dashboard-btn:first-child { grid-column: 1 / -1; }
+    .mobile-dashboard-nav .dashboard-btn.is-active { color: var(--ink); border-color: #f5c75e; background: #f5c75e; }
     .dashboard-content { padding: 20px 16px; }
     .dashboard-section { padding: 20px 16px; overflow: hidden; }
     .dashboard-grid { margin: 20px auto; padding: 0 16px; }
