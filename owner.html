@@ -2,25 +2,46 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Owner Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milk Parlor | Owner Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <nav class="no-print">
-        <span id="welcomeMsg"></span>
-        <button onclick="logout()">Logout</button>
-    </nav>
+    <div class="app-shell owner-shell">
+        <aside class="sidebar no-print" aria-label="Owner dashboard navigation">
+            <div class="brand">
+                <span class="brand-mark" aria-hidden="true">MP</span>
+                <span>Milk Parlor</span>
+            </div>
+            <p class="sidebar-label">Owner workspace</p>
+            <nav class="dashboard-nav" aria-label="Dashboard sections">
+                <button class="dashboard-btn is-active" type="button" data-section="todaySection">Today's Entries</button>
+                <button class="dashboard-btn" type="button" data-section="stockInSection">Morning Stock-In</button>
+                <button class="dashboard-btn" type="button" data-section="productsSection">Products</button>
+                <button class="dashboard-btn" type="button" data-section="shopsSection">Shop Assignments</button>
+                <button class="dashboard-btn" type="button" data-section="reportsSection">Reports</button>
+            </nav>
+            <div class="sidebar-footer">
+                <span id="welcomeMsg"></span>
+                <button class="logout-button" type="button" onclick="logout()">Log out</button>
+            </div>
+        </aside>
 
-    <div class="dashboard-grid no-print">
-        <button class="dashboard-btn" onclick="showSection('todaySection')">Today's Entries</button>
-        <button class="dashboard-btn" onclick="showSection('stockInSection')">Morning Stock-In</button>
-        <button class="dashboard-btn" onclick="showSection('productsSection')">Products</button>
-        <button class="dashboard-btn" onclick="showSection('shopsSection')">Shop Assignments</button>
-        <button class="dashboard-btn" onclick="showSection('reportsSection')">Reports</button>
-    </div>
+        <main class="dashboard-content">
+            <header class="mobile-header no-print">
+                <div class="brand"><span class="brand-mark" aria-hidden="true">MP</span><span>Milk Parlor</span></div>
+                <nav class="mobile-dashboard-nav" aria-label="Dashboard sections">
+                    <button class="dashboard-btn is-active" type="button" data-section="todaySection">Today</button>
+                    <button class="dashboard-btn" type="button" data-section="stockInSection">Stock-In</button>
+                    <button class="dashboard-btn" type="button" data-section="productsSection">Products</button>
+                    <button class="dashboard-btn" type="button" data-section="shopsSection">Shops</button>
+                    <button class="dashboard-btn" type="button" data-section="reportsSection">Reports</button>
+                </nav>
+                <button class="logout-button" type="button" onclick="logout()">Log out</button>
+            </header>
 
-    <section id="todaySection" style="display:none;">
+    <section id="todaySection" class="dashboard-section">
         <h2>Today's Stock Entries</h2>
         <table id="todayTable">
             <thead>
@@ -30,7 +51,7 @@
         </table>
     </section>
 
-    <section id="stockInSection" style="display:none;">
+    <section id="stockInSection" class="dashboard-section" hidden>
         <h2>Morning Stock-In</h2>
         <label>Shop:
             <select id="stockInShop"></select>
@@ -40,7 +61,7 @@
         <p id="stockInMessage"></p>
     </section>
 
-    <section id="productsSection" style="display:none;">
+    <section id="productsSection" class="dashboard-section" hidden>
         <h2>Products</h2>
         <table id="productsTable">
             <thead>
@@ -61,7 +82,7 @@
         <p id="productMessage"></p>
     </section>
 
-    <section id="shopsSection" style="display:none;">
+    <section id="shopsSection" class="dashboard-section" hidden>
         <h2>Shop Assignments</h2>
         <table id="shopUsersTable">
             <thead>
@@ -71,7 +92,7 @@
         </table>
     </section>
 
-    <section id="reportsSection" style="display:none;">
+    <section id="reportsSection" class="dashboard-section" hidden>
         <h2 class="no-print">Reports</h2>
         <div class="no-print">
             <label>Start date: <input type="date" id="reportStart"></label>
@@ -93,6 +114,8 @@
         </table>
         <h3>Grand Total: <span id="reportGrandTotal">0.00</span></h3>
     </section>
+        </main>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>

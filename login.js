@@ -5,6 +5,8 @@ document.getElementById("loginForm").addEventListener("submit", async function (
     const password = document.getElementById("password").value;
     const errorMessage = document.getElementById("errorMessage");
 
+    errorMessage.style.display = "none";
+
     const { data, error } = await supabaseClient.rpc("login_check", {
         p_username: username,
         p_password: password
@@ -18,15 +20,17 @@ document.getElementById("loginForm").addEventListener("submit", async function (
 
     const user = data[0];
 
-    // Store who's logged in for other pages to check
     sessionStorage.setItem("user", JSON.stringify(user));
 
-    // Redirect based on role
     if (user.role === "Owner") {
         window.location.href = "owner.html";
     } else if (user.role === "Controller") {
         window.location.href = "controller.html";
-    } else {
+    } else if (user.role === "Shop") {
         window.location.href = "shop.html";
+    } else {
+        errorMessage.textContent = "Your account does not have a valid role.";
+        errorMessage.style.display = "block";
+        sessionStorage.removeItem("user");
     }
 });

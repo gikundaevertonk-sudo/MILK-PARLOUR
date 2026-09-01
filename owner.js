@@ -1,6 +1,9 @@
 const user = requireRole("Owner");
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
+    document.querySelectorAll(".dashboard-btn").forEach(button => {
+        button.addEventListener("click", () => showSection(button.dataset.section));
+    });
     loadTodayEntries();
     loadShopsIntoDropdown();
     loadProducts();
@@ -8,8 +11,12 @@ if (user) {
 }
 
 function showSection(sectionId) {
-    document.querySelectorAll("section").forEach(s => s.style.display = "none");
-    document.getElementById(sectionId).style.display = "block";
+    document.querySelectorAll(".dashboard-section").forEach(section => {
+        section.hidden = section.id !== sectionId;
+    });
+    document.querySelectorAll(".dashboard-btn").forEach(button => {
+        button.classList.toggle("is-active", button.dataset.section === sectionId);
+    });
 }
 
 async function loadTodayEntries() {

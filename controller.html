@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Controller Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milk Parlor | Controller Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
         <button onclick="logout()">Logout</button>
     </nav>
 
-    <div class="dashboard-grid">
+    <main class="dashboard-grid">
         <div class="dashboard-panel">
             <h2>Subscription Status</h2>
             <p>Expiry date: <span id="expiryDate"></span></p>
@@ -27,7 +28,7 @@
             <button class="dashboard-btn" onclick="updateSubscription()">Update</button>
             <p id="subMessage"></p>
         </div>
-    </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>

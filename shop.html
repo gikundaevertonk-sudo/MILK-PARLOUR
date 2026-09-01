@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Shop Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milk Parlor | Shop Dashboard</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,10 +13,14 @@
         <button onclick="logout()">Logout</button>
     </nav>
 
-    <h1>Today's Sales Entry</h1>
-    <div id="productsContainer"></div>
-    <button onclick="saveEntries()">Save</button>
-    <p id="saveMessage"></p>
+    <main class="dashboard-grid">
+        <div class="dashboard-panel">
+            <h1>Today's Sales Entry</h1>
+            <div id="productsContainer"></div>
+            <button onclick="saveEntries()">Save</button>
+            <p id="saveMessage"></p>
+        </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-client.js"></script>

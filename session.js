@@ -1,15 +1,26 @@
 function requireRole(allowedRole) {
     const userJson = sessionStorage.getItem("user");
     if (!userJson) {
-        window.location.href = "login.html";
-        return null;
+        return redirectToLogin();
     }
-    const user = JSON.parse(userJson);
+
+    let user;
+    try {
+        user = JSON.parse(userJson);
+    } catch {
+        sessionStorage.removeItem("user");
+        return redirectToLogin();
+    }
+
     if (user.role !== allowedRole) {
-        window.location.href = "login.html";
-        return null;
+        return redirectToLogin();
     }
     return user;
+}
+
+function redirectToLogin() {
+    window.location.href = "login.html";
+    return null;
 }
 
 function logout() {

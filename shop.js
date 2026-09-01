@@ -5,13 +5,18 @@ if (user) {
 }
 
 async function loadProducts() {
-    const { data } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from("products")
         .select("*")
         .eq("is_active", true)
         .order("category");
 
     const container = document.getElementById("productsContainer");
+    if (error || !data) {
+        container.innerHTML = "<p>Products could not be loaded. Please try again.</p>";
+        return;
+    }
+
     container.innerHTML = data.map(p => {
         let fields = "";
         if (p.track_quantity_out) {
@@ -30,11 +35,17 @@ async function loadProducts() {
 async function saveEntries() {
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: products } = await supabaseClient
+    const { data: products, error } = await supabaseClient
         .from("products")
         .select("*")
         .eq("is_active", true);
 
+    if (error || !products) {
+        document.getElementById("saveMessage").textContent = "Products could not be loaded. Please try again.";
+        return;
+    }
+
+    const entries = [];
     for (const p of products) {
         const qtyOutEl = document.getElementById(`qtyOut_${p.product_id}`);
         const secQtyOutEl = document.getElementById(`secQtyOut_${p.product_id}`);
@@ -46,18 +57,25 @@ async function saveEntries() {
 
         if (qtyOut === "" && secQtyOut === "" && sales === "") continue;
 
-        await supabaseClient
-            .from("daily_stock_entries")
-            .upsert({
-                shop_id: user.shop_id,
-                product_id: p.product_id,
-                entry_date: today,
-                quantity_out: qtyOut !== "" ? parseFloat(qtyOut) : null,
-                secondary_quantity_out: secQtyOut !== "" ? parseFloat(secQtyOut) : null,
-                sales_amount: sales !== "" ? parseFloat(sales) : null,
-                quantity_out_by_user_id: user.user_id
-            }, { onConflict: "shop_id,product_id,entry_date" });
+        entries.push({
+            shop_id: user.shop_id,
+            product_id: p.product_id,
+            entry_date: today,
+            quantity_out: qtyOut !== "" ? parseFloat(qtyOut) : null,
+            secondary_quantity_out: secQtyOut !== "" ? parseFloat(secQtyOut) : null,
+            sales_amount: sales !== "" ? parseFloat(sales) : null,
+            quantity_out_by_user_id: user.user_id
+        });
     }
 
-    document.getElementById("saveMessage").textContent = "Saved successfully.";
+    if (entries.length === 0) {
+        document.getElementById("saveMessage").textContent = "Enter at least one value before saving.";
+        return;
+    }
+
+    const { error: saveError } = await supabaseClient
+        .from("daily_stock_entries")
+        .upsert(entries, { onConflict: "shop_id,product_id,entry_date" });
+
+    document.getElementById("saveMessage").textContent = saveError ? "Unable to save entries. Please try again." : "Saved successfully.";
 }
