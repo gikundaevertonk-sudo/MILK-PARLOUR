@@ -147,3 +147,58 @@ input[type="number"], input[type="text"], input[type="date"] {
 button {
     cursor: pointer;
 }
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+}
+
+@media (max-width: 600px) {
+
+    nav {
+        flex-direction: column;
+        gap: 10px;
+        text-align: center;
+    }
+
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        max-width: 100%;
+        padding: 0 15px;
+    }
+
+    .dashboard-btn {
+        padding: 20px 15px;
+        font-size: 15px;
+    }
+
+    .login-box {
+        margin: 40px 15px;
+        max-width: none;
+    }
+
+    section {
+        padding: 15px;
+    }
+
+    table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    input[type="text"], input[type="number"], input[type="date"], select {
+        width: 100%;
+        margin-top: 5px;
+    }
+
+    .product-row {
+        padding: 12px;
+    }
+
+    h1, h2 {
+        font-size: 18px;
+    }
+
+}
