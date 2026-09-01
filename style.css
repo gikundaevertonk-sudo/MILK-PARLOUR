@@ -186,6 +186,13 @@ td input, td select { width: 100%; min-width: 100px; }
 #stockInProducts label { width: 100%; }
 #stockInProducts input { width: 100%; }
 #stockInMessage, #productMessage, #saveMessage, #subMessage { color: var(--success); font-weight: 700; }
+#closingMessage, #expenseMessage { color: var(--ink-muted); font-weight: 700; }
+.filter-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 20px; }
+.filter-controls button { margin-top: 12px; }
+.expense-form { display: grid; grid-template-columns: 150px minmax(180px, 1fr) 150px auto; align-items: end; gap: 12px; margin-bottom: 24px; }
+.expense-form button { margin-top: 12px; }
+.business-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 20px; }
+.business-summary p { margin: 0; padding: 12px; border-left: 4px solid var(--accent); background: #f7faf7; }
 #errorMessage { color: #b42318 !important; font-weight: 700; }
 
 @media print {
@@ -215,5 +222,7 @@ td input, td select { width: 100%; min-width: 100px; }
     h2 { font-size: 21px; }
     .login-box { margin: 48px auto; padding: 28px 22px; }
     table { display: block; overflow-x: auto; white-space: nowrap; }
-    #productsSection > input, #reportsSection input, #stockInSection select { width: 100%; margin-right: 0; }
+    #productsSection > input, #reportsSection input, #stockInSection select, #todaySection select, .filter-controls input, .filter-controls select { width: 100%; margin-right: 0; }
+    .filter-controls { display: grid; grid-template-columns: 1fr; }
+    .expense-form, .business-summary { grid-template-columns: 1fr; }
 }

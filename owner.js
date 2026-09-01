@@ -8,6 +8,7 @@ if (user) {
     loadShopsIntoDropdown();
     loadProducts();
     loadShopAssignments();
+    initializeExpenses();
 }
 
 function showSection(sectionId) {
@@ -23,37 +24,186 @@ function showSection(sectionId) {
 
 async function loadTodayEntries() {
     const today = new Date().toISOString().split("T")[0];
-    const { data, error } = await supabaseClient
+    const shopId = document.getElementById("todayShop").value;
+    let query = supabaseClient
         .from("daily_stock_entries")
-        .select("quantity_in, quantity_out, secondary_quantity_out, sales_amount, shops(name), products(name)")
+        .select("shop_id, product_id, entry_date, quantity_in, quantity_out, secondary_quantity_out, sales_amount, products(name)")
         .eq("entry_date", today);
+
+    if (shopId) {
+        query = query.eq("shop_id", shopId);
+    }
+
+    const { data, error } = await query.order("product_id");
 
     const tbody = document.getElementById("todayTableBody");
     tbody.innerHTML = "";
 
     if (error || !data || data.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='6'>No entries yet today.</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='6'>No entries yet for this shop.</td></tr>";
         return;
     }
 
     data.forEach(row => {
         tbody.innerHTML += `<tr>
-            <td>${row.shops.name}</td>
             <td>${row.products.name}</td>
             <td>${row.quantity_in ?? ""}</td>
             <td>${row.quantity_out ?? ""}</td>
             <td>${row.secondary_quantity_out ?? ""}</td>
             <td>${row.sales_amount ?? ""}</td>
+            <td><button type="button" onclick="editDailyEntry(${row.shop_id}, ${row.product_id}, '${row.entry_date}')">Edit</button></td>
         </tr>`;
     });
 }
 
 async function loadShopsIntoDropdown() {
-    const { data } = await supabaseClient.from("shops").select("shop_id, name").order("name");
-    const select = document.getElementById("stockInShop");
-    select.innerHTML = data.map(s => `<option value="${s.shop_id}">${s.name}</option>`).join("");
+    const { data, error } = await supabaseClient.from("shops").select("shop_id, name").order("name");
+    if (error || !data) return;
+
+    const options = data.map(shop => `<option value="${shop.shop_id}">${shop.name}</option>`).join("");
+    const stockInSelect = document.getElementById("stockInShop");
+    const todaySelect = document.getElementById("todayShop");
+    const closingSelect = document.getElementById("closingShop");
+    stockInSelect.innerHTML = options;
+    todaySelect.innerHTML = options;
+    closingSelect.innerHTML = options;
+    document.getElementById("closingDate").value = new Date().toISOString().split("T")[0];
     loadStockInProducts();
-    select.addEventListener("change", loadStockInProducts);
+    loadClosingBalances();
+    stockInSelect.addEventListener("change", loadStockInProducts);
+    todaySelect.addEventListener("change", loadTodayEntries);
+    closingSelect.addEventListener("change", loadClosingBalances);
+}
+
+function editDailyEntry(shopId, productId, entryDate) {
+    const row = document.querySelector(`#todayTableBody button[onclick*="${shopId}, ${productId}"]`).closest("tr");
+    const cells = row.querySelectorAll("td");
+    const values = Array.from(cells).slice(1, 5).map(cell => cell.textContent.trim());
+    cells[1].innerHTML = `<input type="number" step="0.01" value="${values[0]}">`;
+    cells[2].innerHTML = `<input type="number" step="0.01" value="${values[1]}">`;
+    cells[3].innerHTML = `<input type="number" step="0.01" value="${values[2]}">`;
+    cells[4].innerHTML = `<input type="number" step="0.01" value="${values[3]}">`;
+    cells[5].innerHTML = `<button type="button" onclick="saveDailyEntry(${shopId}, ${productId}, '${entryDate}', this)">Save</button>`;
+}
+
+async function saveDailyEntry(shopId, productId, entryDate, button) {
+    const row = button.closest("tr");
+    const inputs = row.querySelectorAll("input");
+    const values = Array.from(inputs).map(input => input.value === "" ? null : parseFloat(input.value));
+    const { error } = await supabaseClient
+        .from("daily_stock_entries")
+        .update({ quantity_in: values[0], quantity_out: values[1], secondary_quantity_out: values[2], sales_amount: values[3] })
+        .eq("shop_id", shopId)
+        .eq("product_id", productId)
+        .eq("entry_date", entryDate);
+
+    if (error) {
+        alert("Unable to save the stock entry.");
+        return;
+    }
+    loadTodayEntries();
+    loadClosingBalances();
+}
+
+async function loadClosingBalances() {
+    const shopId = document.getElementById("closingShop").value;
+    const entryDate = document.getElementById("closingDate").value;
+    const tbody = document.getElementById("closingTableBody");
+    const message = document.getElementById("closingMessage");
+    if (!shopId || !entryDate) return;
+
+    const { data, error } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("quantity_in, quantity_out, secondary_quantity_out, sales_amount, products(name)")
+        .eq("shop_id", shopId)
+        .eq("entry_date", entryDate)
+        .order("product_id");
+
+    tbody.innerHTML = "";
+    if (error || !data || data.length === 0) {
+        message.textContent = "No stock entries found for this shop and date.";
+        return;
+    }
+
+    message.textContent = "";
+    data.forEach(row => {
+        const quantityIn = Number(row.quantity_in ?? 0);
+        const quantityOut = Number(row.quantity_out ?? 0);
+        const secondaryQuantityOut = row.secondary_quantity_out ?? "";
+        const remainingBalance = quantityIn - quantityOut;
+        tbody.innerHTML += `<tr><td>${row.products.name}</td><td>${quantityIn}</td><td>${quantityOut}</td><td>${secondaryQuantityOut}</td><td>${remainingBalance}</td><td>${row.sales_amount ?? ""}</td></tr>`;
+    });
+}
+
+function initializeExpenses() {
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("expenseDate").value = today;
+    document.getElementById("expenseStart").value = today.slice(0, 8) + "01";
+    document.getElementById("expenseEnd").value = today;
+    loadExpenses();
+}
+
+function getExpenses() {
+    return JSON.parse(localStorage.getItem("milkParlorExpenses") || "[]");
+}
+
+function saveExpenses(expenses) {
+    localStorage.setItem("milkParlorExpenses", JSON.stringify(expenses));
+}
+
+function addExpense() {
+    const date = document.getElementById("expenseDate").value;
+    const description = document.getElementById("expenseDescription").value.trim();
+    const amount = Number(document.getElementById("expenseAmount").value);
+    const message = document.getElementById("expenseMessage");
+
+    if (!date || !description || !Number.isFinite(amount) || amount <= 0) {
+        message.textContent = "Enter an expense date, description, and amount.";
+        return;
+    }
+
+    const expenses = getExpenses();
+    expenses.push({ id: crypto.randomUUID(), date, description, amount });
+    saveExpenses(expenses);
+    document.getElementById("expenseDescription").value = "";
+    document.getElementById("expenseAmount").value = "";
+    message.textContent = "Expense recorded.";
+    loadExpenses();
+}
+
+function deleteExpense(expenseId) {
+    saveExpenses(getExpenses().filter(expense => expense.id !== expenseId));
+    loadExpenses();
+}
+
+async function loadExpenses() {
+    const start = document.getElementById("expenseStart").value;
+    const end = document.getElementById("expenseEnd").value;
+    const tbody = document.getElementById("expensesTableBody");
+    const message = document.getElementById("expenseMessage");
+    const expenses = getExpenses().filter(expense => (!start || expense.date >= start) && (!end || expense.date <= end));
+    const totalExpenses = expenses.reduce((total, expense) => total + Number(expense.amount), 0);
+
+    tbody.innerHTML = expenses.length
+        ? expenses.sort((first, second) => second.date.localeCompare(first.date)).map(expense => `<tr><td>${expense.date}</td><td>${expense.description}</td><td>${Number(expense.amount).toFixed(2)}</td><td><button type="button" onclick="deleteExpense('${expense.id}')">Delete</button></td></tr>`).join("")
+        : "<tr><td colspan='4'>No expenses in this period.</td></tr>";
+
+    document.getElementById("expenseTotal").textContent = totalExpenses.toFixed(2);
+    if (!start || !end) {
+        document.getElementById("expenseSalesTotal").textContent = "0.00";
+        document.getElementById("expenseNetTotal").textContent = (-totalExpenses).toFixed(2);
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("sales_amount")
+        .gte("entry_date", start)
+        .lte("entry_date", end);
+    const totalSales = error || !data ? 0 : data.reduce((total, entry) => total + Number(entry.sales_amount ?? 0), 0);
+    document.getElementById("expenseSalesTotal").textContent = totalSales.toFixed(2);
+    document.getElementById("expenseNetTotal").textContent = (totalSales - totalExpenses).toFixed(2);
+    if (error) message.textContent = "Expenses are saved, but sales could not be loaded.";
 }
 
 async function loadStockInProducts() {

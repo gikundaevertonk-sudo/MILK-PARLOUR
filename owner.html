@@ -18,6 +18,8 @@
             <nav class="dashboard-nav" aria-label="Dashboard sections">
                 <button class="dashboard-btn is-active" type="button" data-section="todaySection" aria-controls="todaySection" aria-expanded="true">Today's Entries</button>
                 <button class="dashboard-btn" type="button" data-section="stockInSection" aria-controls="stockInSection" aria-expanded="false">Morning Stock-In</button>
+                <button class="dashboard-btn" type="button" data-section="closingSection" aria-controls="closingSection" aria-expanded="false">Closing Balances</button>
+                <button class="dashboard-btn" type="button" data-section="expensesSection" aria-controls="expensesSection" aria-expanded="false">Expenses</button>
                 <button class="dashboard-btn" type="button" data-section="productsSection" aria-controls="productsSection" aria-expanded="false">Products</button>
                 <button class="dashboard-btn" type="button" data-section="shopsSection" aria-controls="shopsSection" aria-expanded="false">Shop Assignments</button>
                 <button class="dashboard-btn" type="button" data-section="reportsSection" aria-controls="reportsSection" aria-expanded="false">Reports</button>
@@ -34,6 +36,8 @@
                 <nav class="mobile-dashboard-nav" aria-label="Dashboard sections">
                     <button class="dashboard-btn is-active" type="button" data-section="todaySection" aria-controls="todaySection" aria-expanded="true">Today</button>
                     <button class="dashboard-btn" type="button" data-section="stockInSection" aria-controls="stockInSection" aria-expanded="false">Stock-In</button>
+                    <button class="dashboard-btn" type="button" data-section="closingSection" aria-controls="closingSection" aria-expanded="false">Balances</button>
+                    <button class="dashboard-btn" type="button" data-section="expensesSection" aria-controls="expensesSection" aria-expanded="false">Expenses</button>
                     <button class="dashboard-btn" type="button" data-section="productsSection" aria-controls="productsSection" aria-expanded="false">Products</button>
                     <button class="dashboard-btn" type="button" data-section="shopsSection" aria-controls="shopsSection" aria-expanded="false">Shops</button>
                     <button class="dashboard-btn" type="button" data-section="reportsSection" aria-controls="reportsSection" aria-expanded="false">Reports</button>
@@ -43,9 +47,12 @@
 
     <section id="todaySection" class="dashboard-section" aria-labelledby="todayHeading">
         <h2 id="todayHeading">Today's Stock Entries</h2>
+        <label for="todayShop">Shop:
+            <select id="todayShop"></select>
+        </label>
         <table id="todayTable">
             <thead>
-                <tr><th>Shop</th><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Secondary Qty Out</th><th>Sales Amount</th></tr>
+                <tr><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Secondary Qty Out</th><th>Sales Amount</th><th>Action</th></tr>
             </thead>
             <tbody id="todayTableBody"></tbody>
         </table>
@@ -59,6 +66,63 @@
         <div id="stockInProducts"></div>
         <button onclick="saveStockIn()">Save Stock-In</button>
         <p id="stockInMessage"></p>
+    </section>
+
+    <section id="closingSection" class="dashboard-section" aria-labelledby="closingHeading" hidden>
+        <h2 id="closingHeading">Closing Balances</h2>
+        <div class="filter-controls">
+            <label for="closingShop">Shop:
+                <select id="closingShop"></select>
+            </label>
+            <label for="closingDate">Date:
+                <input type="date" id="closingDate">
+            </label>
+            <button type="button" onclick="loadClosingBalances()">View Balances</button>
+        </div>
+        <table id="closingTable">
+            <thead>
+                <tr><th>Product</th><th>Morning Stock-In</th><th>Qty Out</th><th>Secondary Qty Out</th><th>Remaining Balance</th><th>Sales Amount</th></tr>
+            </thead>
+            <tbody id="closingTableBody"></tbody>
+        </table>
+        <p id="closingMessage"></p>
+    </section>
+
+    <section id="expensesSection" class="dashboard-section" aria-labelledby="expensesHeading" hidden>
+        <h2 id="expensesHeading">Business Expenses</h2>
+        <div class="expense-form">
+            <label for="expenseDate">Date:
+                <input type="date" id="expenseDate">
+            </label>
+            <label for="expenseDescription">Description:
+                <input type="text" id="expenseDescription" placeholder="e.g. Transport">
+            </label>
+            <label for="expenseAmount">Amount:
+                <input type="number" id="expenseAmount" min="0" step="0.01" placeholder="0.00">
+            </label>
+            <button type="button" onclick="addExpense()">Add Expense</button>
+        </div>
+        <div class="filter-controls">
+            <label for="expenseStart">Start date:
+                <input type="date" id="expenseStart">
+            </label>
+            <label for="expenseEnd">End date:
+                <input type="date" id="expenseEnd">
+            </label>
+            <button type="button" onclick="loadExpenses()">View Performance</button>
+        </div>
+        <div class="business-summary" aria-live="polite">
+            <p>Sales: <strong id="expenseSalesTotal">0.00</strong></p>
+            <p>Expenses: <strong id="expenseTotal">0.00</strong></p>
+            <p>Net: <strong id="expenseNetTotal">0.00</strong></p>
+        </div>
+        <table id="expensesTable">
+            <thead>
+                <tr><th>Date</th><th>Description</th><th>Amount</th><th>Action</th></tr>
+            </thead>
+            <tbody id="expensesTableBody"></tbody>
+        </table>
+        <p id="expenseMessage"></p>
     </section>
 
     <section id="productsSection" class="dashboard-section" aria-labelledby="productsHeading" hidden>
