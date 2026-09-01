@@ -132,7 +132,8 @@ button:not(.dashboard-btn):not(.logout-button):hover { background: var(--accent-
     text-align: left;
 }
 
-.dashboard-btn:hover, .dashboard-btn.is-active { color: #fff; background: rgba(255, 255, 255, 0.13); }
+.dashboard-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.13); }
+.dashboard-btn.is-active { color: var(--ink); background: #f5c75e; font-weight: 700; }
 .sidebar-footer { margin-top: auto; padding: 16px 12px 0; border-top: 1px solid rgba(255,255,255,0.2); font-size: 14px; }
 .sidebar-footer .logout-button { width: 100%; margin-top: 12px; }
 .mobile-dashboard-nav { display: none; }

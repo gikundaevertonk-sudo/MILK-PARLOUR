@@ -15,7 +15,9 @@ function showSection(sectionId) {
         section.hidden = section.id !== sectionId;
     });
     document.querySelectorAll(".dashboard-btn").forEach(button => {
-        button.classList.toggle("is-active", button.dataset.section === sectionId);
+        const isActive = button.dataset.section === sectionId;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-expanded", String(isActive));
     });
 }
 

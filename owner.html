@@ -16,11 +16,11 @@
             </div>
             <p class="sidebar-label">Owner workspace</p>
             <nav class="dashboard-nav" aria-label="Dashboard sections">
-                <button class="dashboard-btn is-active" type="button" data-section="todaySection">Today's Entries</button>
-                <button class="dashboard-btn" type="button" data-section="stockInSection">Morning Stock-In</button>
-                <button class="dashboard-btn" type="button" data-section="productsSection">Products</button>
-                <button class="dashboard-btn" type="button" data-section="shopsSection">Shop Assignments</button>
-                <button class="dashboard-btn" type="button" data-section="reportsSection">Reports</button>
+                <button class="dashboard-btn is-active" type="button" data-section="todaySection" aria-controls="todaySection" aria-expanded="true">Today's Entries</button>
+                <button class="dashboard-btn" type="button" data-section="stockInSection" aria-controls="stockInSection" aria-expanded="false">Morning Stock-In</button>
+                <button class="dashboard-btn" type="button" data-section="productsSection" aria-controls="productsSection" aria-expanded="false">Products</button>
+                <button class="dashboard-btn" type="button" data-section="shopsSection" aria-controls="shopsSection" aria-expanded="false">Shop Assignments</button>
+                <button class="dashboard-btn" type="button" data-section="reportsSection" aria-controls="reportsSection" aria-expanded="false">Reports</button>
             </nav>
             <div class="sidebar-footer">
                 <span id="welcomeMsg"></span>
@@ -32,17 +32,17 @@
             <header class="mobile-header no-print">
                 <div class="brand"><span class="brand-mark" aria-hidden="true">MP</span><span>Milk Parlor</span></div>
                 <nav class="mobile-dashboard-nav" aria-label="Dashboard sections">
-                    <button class="dashboard-btn is-active" type="button" data-section="todaySection">Today</button>
-                    <button class="dashboard-btn" type="button" data-section="stockInSection">Stock-In</button>
-                    <button class="dashboard-btn" type="button" data-section="productsSection">Products</button>
-                    <button class="dashboard-btn" type="button" data-section="shopsSection">Shops</button>
-                    <button class="dashboard-btn" type="button" data-section="reportsSection">Reports</button>
+                    <button class="dashboard-btn is-active" type="button" data-section="todaySection" aria-controls="todaySection" aria-expanded="true">Today</button>
+                    <button class="dashboard-btn" type="button" data-section="stockInSection" aria-controls="stockInSection" aria-expanded="false">Stock-In</button>
+                    <button class="dashboard-btn" type="button" data-section="productsSection" aria-controls="productsSection" aria-expanded="false">Products</button>
+                    <button class="dashboard-btn" type="button" data-section="shopsSection" aria-controls="shopsSection" aria-expanded="false">Shops</button>
+                    <button class="dashboard-btn" type="button" data-section="reportsSection" aria-controls="reportsSection" aria-expanded="false">Reports</button>
                 </nav>
                 <button class="logout-button" type="button" onclick="logout()">Log out</button>
             </header>
 
-    <section id="todaySection" class="dashboard-section">
-        <h2>Today's Stock Entries</h2>
+    <section id="todaySection" class="dashboard-section" aria-labelledby="todayHeading">
+        <h2 id="todayHeading">Today's Stock Entries</h2>
         <table id="todayTable">
             <thead>
                 <tr><th>Shop</th><th>Product</th><th>Qty In</th><th>Qty Out</th><th>Secondary Qty Out</th><th>Sales Amount</th></tr>
@@ -51,8 +51,8 @@
         </table>
     </section>
 
-    <section id="stockInSection" class="dashboard-section" hidden>
-        <h2>Morning Stock-In</h2>
+    <section id="stockInSection" class="dashboard-section" aria-labelledby="stockInHeading" hidden>
+        <h2 id="stockInHeading">Morning Stock-In</h2>
         <label>Shop:
             <select id="stockInShop"></select>
         </label>
@@ -61,8 +61,8 @@
         <p id="stockInMessage"></p>
     </section>
 
-    <section id="productsSection" class="dashboard-section" hidden>
-        <h2>Products</h2>
+    <section id="productsSection" class="dashboard-section" aria-labelledby="productsHeading" hidden>
+        <h2 id="productsHeading">Products</h2>
         <table id="productsTable">
             <thead>
                 <tr><th>Name</th><th>Category</th><th>Unit</th><th>Price</th><th>Active</th><th>Action</th></tr>
@@ -82,8 +82,8 @@
         <p id="productMessage"></p>
     </section>
 
-    <section id="shopsSection" class="dashboard-section" hidden>
-        <h2>Shop Assignments</h2>
+    <section id="shopsSection" class="dashboard-section" aria-labelledby="shopsHeading" hidden>
+        <h2 id="shopsHeading">Shop Assignments</h2>
         <table id="shopUsersTable">
             <thead>
                 <tr><th>Display Name</th><th>Username</th><th>Shop</th><th>Action</th></tr>
@@ -92,8 +92,8 @@
         </table>
     </section>
 
-    <section id="reportsSection" class="dashboard-section" hidden>
-        <h2 class="no-print">Reports</h2>
+    <section id="reportsSection" class="dashboard-section" aria-labelledby="reportsHeading" hidden>
+        <h2 id="reportsHeading" class="no-print">Reports</h2>
         <div class="no-print">
             <label>Start date: <input type="date" id="reportStart"></label>
             <label>End date: <input type="date" id="reportEnd"></label>
