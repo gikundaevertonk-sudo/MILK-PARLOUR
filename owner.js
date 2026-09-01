@@ -40,18 +40,17 @@ async function loadTodayEntries() {
     tbody.innerHTML = "";
 
     if (error || !data || data.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='6'>No entries yet for this shop.</td></tr>";
+        tbody.innerHTML = "<tr><td colspan='5'>No entries yet for this shop.</td></tr>";
         return;
     }
 
     data.forEach(row => {
-        tbody.innerHTML += `<tr class="editable-row" ondblclick="editDailyEntry(this, ${row.shop_id}, ${row.product_id}, '${row.entry_date}')">
+        tbody.innerHTML += `<tr class="editable-row" ondblclick="editDailyEntry(this, ${row.shop_id}, ${row.product_id}, '${row.entry_date}')" onfocusout="queueDailyEntrySave(this, ${row.shop_id}, ${row.product_id}, '${row.entry_date}')">
             <td>${row.products.name}</td>
             <td>${row.quantity_in ?? ""}</td>
             <td>${row.quantity_out ?? ""}</td>
             <td>${row.secondary_quantity_out ?? ""}</td>
             <td>${row.sales_amount ?? ""}</td>
-            <td class="edit-actions"></td>
         </tr>`;
     });
 }
@@ -85,11 +84,17 @@ function editDailyEntry(row, shopId, productId, entryDate) {
     cells[2].innerHTML = `<input type="number" step="0.01" value="${values[1]}">`;
     cells[3].innerHTML = `<input type="number" step="0.01" value="${values[2]}">`;
     cells[4].innerHTML = `<input type="number" step="0.01" value="${values[3]}">`;
-    cells[5].innerHTML = `<button type="button" onclick="saveDailyEntry(${shopId}, ${productId}, '${entryDate}', this)">Save</button>`;
+    cells[1].querySelector("input").focus();
 }
 
-async function saveDailyEntry(shopId, productId, entryDate, button) {
-    const row = button.closest("tr");
+function queueDailyEntrySave(row, shopId, productId, entryDate) {
+    queueAutoSave(row, () => saveDailyEntry(row, shopId, productId, entryDate));
+}
+
+async function saveDailyEntry(row, shopId, productId, entryDate) {
+    if (row.classList.contains("is-saving")) return;
+
+    row.classList.add("is-saving");
     const inputs = row.querySelectorAll("input");
     const values = Array.from(inputs).map(input => input.value === "" ? null : parseFloat(input.value));
     const { error } = await supabaseClient
@@ -100,6 +105,7 @@ async function saveDailyEntry(shopId, productId, entryDate, button) {
         .eq("entry_date", entryDate);
 
     if (error) {
+        row.classList.remove("is-saving");
         alert("Unable to save the stock entry.");
         return;
     }
@@ -261,7 +267,7 @@ async function loadProducts() {
     const tbody = document.getElementById("productsTableBody");
 
     tbody.innerHTML = data.map(p => `
-        <tr id="productRow_${p.product_id}" class="editable-row" ondblclick="toggleProductEdit(${p.product_id}, true)">
+        <tr id="productRow_${p.product_id}" class="editable-row" ondblclick="toggleProductEdit(${p.product_id}, true)" onfocusout="queueProductSave(this, ${p.product_id})">
             <td><span class="viewMode">${p.name}</span><input class="editMode" style="display:none" type="text" id="editName_${p.product_id}" value="${p.name}"></td>
             <td><span class="viewMode">${p.category}</span><input class="editMode" style="display:none" type="text" id="editCategory_${p.product_id}" value="${p.category}"></td>
             <td><span class="viewMode">${p.unit_label}</span><input class="editMode" style="display:none" type="text" id="editUnit_${p.product_id}" value="${p.unit_label}"></td>
@@ -272,9 +278,6 @@ async function loadProducts() {
                     <option value="true" ${p.is_active ? "selected" : ""}>Yes</option>
                     <option value="false" ${!p.is_active ? "selected" : ""}>No</option>
                 </select>
-            </td>
-            <td class="edit-actions">
-                <button class="editMode" style="display:none" onclick="saveProductEdit(${p.product_id})">Save</button>
             </td>
         </tr>
     `).join("");
@@ -287,22 +290,38 @@ function toggleProductEdit(productId, editing) {
     row.classList.toggle("is-editing", editing);
     row.querySelectorAll(".viewMode").forEach(el => el.style.display = editing ? "none" : "");
     row.querySelectorAll(".editMode").forEach(el => el.style.display = editing ? "" : "none");
+    if (editing) row.querySelector("input").focus();
 }
 
-async function saveProductEdit(productId) {
+function queueProductSave(row, productId) {
+    queueAutoSave(row, () => saveProductEdit(row, productId));
+}
+
+async function saveProductEdit(row, productId) {
+    if (row.classList.contains("is-saving")) return;
+
     const name = document.getElementById(`editName_${productId}`).value.trim();
     const category = document.getElementById(`editCategory_${productId}`).value.trim();
     const unit = document.getElementById(`editUnit_${productId}`).value.trim();
     const price = document.getElementById(`editPrice_${productId}`).value;
     const active = document.getElementById(`editActive_${productId}`).value === "true";
 
-    await supabaseClient.from("products").update({
+    if (!name || !category || !unit) return;
+
+    row.classList.add("is-saving");
+    const { error } = await supabaseClient.from("products").update({
         name,
         category,
         unit_label: unit,
         unit_price: price ? parseFloat(price) : null,
         is_active: active
     }).eq("product_id", productId);
+
+    if (error) {
+        row.classList.remove("is-saving");
+        alert("Unable to save the product.");
+        return;
+    }
 
     loadProducts();
 }
@@ -343,7 +362,7 @@ async function loadShopAssignments() {
 
     const tbody = document.getElementById("shopUsersTableBody");
     tbody.innerHTML = shopUsers.map(u => `
-        <tr id="userRow_${u.user_id}" class="editable-row" ondblclick="toggleUserEdit(${u.user_id}, true)">
+        <tr id="userRow_${u.user_id}" class="editable-row" ondblclick="toggleUserEdit(${u.user_id}, true)" onfocusout="queueUserSave(this, ${u.user_id})">
             <td><span class="viewMode">${u.display_name}</span><input class="editMode" style="display:none" type="text" id="editDisplayName_${u.user_id}" value="${u.display_name}"></td>
             <td><span class="viewMode">${u.username}</span><input class="editMode" style="display:none" type="text" id="editUsername_${u.user_id}" value="${u.username}"></td>
             <td>
@@ -359,9 +378,6 @@ async function loadShopAssignments() {
                     ${shops.map(s => `<option value="${s.shop_id}" ${s.shop_id === u.shop_id ? "selected" : ""}>${s.name}</option>`).join("")}
                 </select>
             </td>
-            <td class="edit-actions">
-                <button class="editMode" style="display:none" onclick="saveUserEdit(${u.user_id})">Save</button>
-            </td>
         </tr>
     `).join("");
 }
@@ -373,6 +389,7 @@ function toggleUserEdit(userId, editing) {
     row.classList.toggle("is-editing", editing);
     row.querySelectorAll(".viewMode").forEach(el => el.style.display = editing ? "none" : "");
     row.querySelectorAll(".editMode").forEach(el => el.style.display = editing ? "" : "none");
+    if (editing) row.querySelector("input").focus();
 }
 
 function toggleOwnerPassword(userId, button) {
@@ -384,7 +401,22 @@ function toggleOwnerPassword(userId, button) {
     button.setAttribute("aria-pressed", String(!isVisible));
 }
 
-async function saveUserEdit(userId) {
+function queueUserSave(row, userId) {
+    queueAutoSave(row, () => saveUserEdit(row, userId));
+}
+
+function queueAutoSave(row, save) {
+    clearTimeout(row.autoSaveTimer);
+    row.autoSaveTimer = setTimeout(() => {
+        if (row.isConnected && row.classList.contains("is-editing") && !row.contains(document.activeElement)) {
+            save();
+        }
+    }, 150);
+}
+
+async function saveUserEdit(row, userId) {
+    if (row.classList.contains("is-saving")) return;
+
     const displayName = document.getElementById(`editDisplayName_${userId}`).value.trim();
     const username = document.getElementById(`editUsername_${userId}`).value.trim();
     const shopId = document.getElementById(`editShop_${userId}`).value;
@@ -405,8 +437,10 @@ async function saveUserEdit(userId) {
         updates.password = password;
     }
 
+    row.classList.add("is-saving");
     const { error } = await supabaseClient.from("users").update(updates).eq("user_id", userId);
     if (error) {
+        row.classList.remove("is-saving");
         alert("Unable to save login details. Please check the username and password.");
         return;
     }
