@@ -176,6 +176,10 @@ th, td { padding: 11px 12px; border-bottom: 1px solid var(--line); text-align: l
 th { color: #fff; background: var(--ink); font-size: 14px; }
 tbody tr:hover { background: #f7faf7; }
 td input, td select { width: 100%; min-width: 100px; }
+.editable-row td:not(.edit-actions) { cursor: text; }
+.editable-row.is-editing { background: #fff8e8; }
+.edit-actions { width: 1%; white-space: nowrap; }
+.edit-actions button { margin: 0; }
 
 .product-row { padding: 18px; margin-bottom: 12px; }
 .product-row h3 { margin: 0 0 8px; }

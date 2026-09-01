@@ -45,13 +45,13 @@ async function loadTodayEntries() {
     }
 
     data.forEach(row => {
-        tbody.innerHTML += `<tr>
+        tbody.innerHTML += `<tr class="editable-row" ondblclick="editDailyEntry(this, ${row.shop_id}, ${row.product_id}, '${row.entry_date}')">
             <td>${row.products.name}</td>
             <td>${row.quantity_in ?? ""}</td>
             <td>${row.quantity_out ?? ""}</td>
             <td>${row.secondary_quantity_out ?? ""}</td>
             <td>${row.sales_amount ?? ""}</td>
-            <td><button type="button" onclick="editDailyEntry(${row.shop_id}, ${row.product_id}, '${row.entry_date}')">Edit</button></td>
+            <td class="edit-actions"></td>
         </tr>`;
     });
 }
@@ -75,8 +75,10 @@ async function loadShopsIntoDropdown() {
     closingSelect.addEventListener("change", loadClosingBalances);
 }
 
-function editDailyEntry(shopId, productId, entryDate) {
-    const row = document.querySelector(`#todayTableBody button[onclick*="${shopId}, ${productId}"]`).closest("tr");
+function editDailyEntry(row, shopId, productId, entryDate) {
+    if (row.classList.contains("is-editing")) return;
+
+    row.classList.add("is-editing");
     const cells = row.querySelectorAll("td");
     const values = Array.from(cells).slice(1, 5).map(cell => cell.textContent.trim());
     cells[1].innerHTML = `<input type="number" step="0.01" value="${values[0]}">`;
@@ -259,7 +261,7 @@ async function loadProducts() {
     const tbody = document.getElementById("productsTableBody");
 
     tbody.innerHTML = data.map(p => `
-        <tr id="productRow_${p.product_id}">
+        <tr id="productRow_${p.product_id}" class="editable-row" ondblclick="toggleProductEdit(${p.product_id}, true)">
             <td><span class="viewMode">${p.name}</span><input class="editMode" style="display:none" type="text" id="editName_${p.product_id}" value="${p.name}"></td>
             <td><span class="viewMode">${p.category}</span><input class="editMode" style="display:none" type="text" id="editCategory_${p.product_id}" value="${p.category}"></td>
             <td><span class="viewMode">${p.unit_label}</span><input class="editMode" style="display:none" type="text" id="editUnit_${p.product_id}" value="${p.unit_label}"></td>
@@ -271,10 +273,8 @@ async function loadProducts() {
                     <option value="false" ${!p.is_active ? "selected" : ""}>No</option>
                 </select>
             </td>
-            <td>
-                <button class="viewMode" onclick="toggleProductEdit(${p.product_id}, true)">Edit</button>
+            <td class="edit-actions">
                 <button class="editMode" style="display:none" onclick="saveProductEdit(${p.product_id})">Save</button>
-                <button class="editMode" style="display:none" onclick="toggleProductEdit(${p.product_id}, false)">Cancel</button>
             </td>
         </tr>
     `).join("");
@@ -282,6 +282,9 @@ async function loadProducts() {
 
 function toggleProductEdit(productId, editing) {
     const row = document.getElementById(`productRow_${productId}`);
+    if (editing && row.classList.contains("is-editing")) return;
+
+    row.classList.toggle("is-editing", editing);
     row.querySelectorAll(".viewMode").forEach(el => el.style.display = editing ? "none" : "");
     row.querySelectorAll(".editMode").forEach(el => el.style.display = editing ? "" : "none");
 }
@@ -340,7 +343,7 @@ async function loadShopAssignments() {
 
     const tbody = document.getElementById("shopUsersTableBody");
     tbody.innerHTML = shopUsers.map(u => `
-        <tr id="userRow_${u.user_id}">
+        <tr id="userRow_${u.user_id}" class="editable-row" ondblclick="toggleUserEdit(${u.user_id}, true)">
             <td><span class="viewMode">${u.display_name}</span><input class="editMode" style="display:none" type="text" id="editDisplayName_${u.user_id}" value="${u.display_name}"></td>
             <td><span class="viewMode">${u.username}</span><input class="editMode" style="display:none" type="text" id="editUsername_${u.user_id}" value="${u.username}"></td>
             <td>
@@ -356,10 +359,8 @@ async function loadShopAssignments() {
                     ${shops.map(s => `<option value="${s.shop_id}" ${s.shop_id === u.shop_id ? "selected" : ""}>${s.name}</option>`).join("")}
                 </select>
             </td>
-            <td>
-                <button class="viewMode" onclick="toggleUserEdit(${u.user_id}, true)">Edit</button>
+            <td class="edit-actions">
                 <button class="editMode" style="display:none" onclick="saveUserEdit(${u.user_id})">Save</button>
-                <button class="editMode" style="display:none" onclick="toggleUserEdit(${u.user_id}, false)">Cancel</button>
             </td>
         </tr>
     `).join("");
@@ -367,6 +368,9 @@ async function loadShopAssignments() {
 
 function toggleUserEdit(userId, editing) {
     const row = document.getElementById(`userRow_${userId}`);
+    if (editing && row.classList.contains("is-editing")) return;
+
+    row.classList.toggle("is-editing", editing);
     row.querySelectorAll(".viewMode").forEach(el => el.style.display = editing ? "none" : "");
     row.querySelectorAll(".editMode").forEach(el => el.style.display = editing ? "" : "none");
 }
