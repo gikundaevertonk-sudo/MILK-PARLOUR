@@ -85,6 +85,22 @@
             </thead>
             <tbody id="closingTableBody"></tbody>
         </table>
+        <div class="closing-entry-grid">
+            <label for="closingMpesa">M-Pesa amount:
+                <input type="number" id="closingMpesa" min="0" step="0.01" placeholder="0.00">
+            </label>
+            <label for="closingNotes">Cash notes:
+                <input type="number" id="closingNotes" min="0" step="0.01" placeholder="0.00">
+            </label>
+            <label for="closingCoins">Cash coins:
+                <input type="number" id="closingCoins" min="0" step="0.01" placeholder="0.00">
+            </label>
+        </div>
+        <div class="closing-money-summary">Cash total: <strong id="closingCashTotal">0.00</strong> | Money received: <strong id="closingMoneyTotal">0.00</strong></div>
+        <h3>Yoghurt Cups</h3>
+        <div id="yoghurtClosingRows"></div>
+        <button type="button" onclick="addYoghurtCupSize()">Add Cup Size</button>
+        <button type="button" onclick="saveClosingDetails()">Save Closing Details</button>
         <p id="closingMessage"></p>
     </section>
 
@@ -127,6 +143,13 @@
 
     <section id="productsSection" class="dashboard-section" aria-labelledby="productsHeading" hidden>
         <h2 id="productsHeading">Products</h2>
+        <div class="filter-controls">
+            <label for="productShop">Shop products:
+                <select id="productShop"></select>
+            </label>
+        </div>
+        <div id="shopProductAssignments" class="shop-product-assignments"></div>
+        <p id="shopProductMessage"></p>
         <table id="productsTable">
             <thead>
                 <tr><th>Name</th><th>Category</th><th>Unit</th><th>Price</th><th>Active</th></tr>

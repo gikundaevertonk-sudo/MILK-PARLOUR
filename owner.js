@@ -63,15 +63,19 @@ async function loadShopsIntoDropdown() {
     const stockInSelect = document.getElementById("stockInShop");
     const todaySelect = document.getElementById("todayShop");
     const closingSelect = document.getElementById("closingShop");
+    const productSelect = document.getElementById("productShop");
     stockInSelect.innerHTML = options;
     todaySelect.innerHTML = options;
     closingSelect.innerHTML = options;
+    productSelect.innerHTML = options;
     document.getElementById("closingDate").value = new Date().toISOString().split("T")[0];
     loadStockInProducts();
     loadClosingBalances();
     stockInSelect.addEventListener("change", loadStockInProducts);
     todaySelect.addEventListener("change", loadTodayEntries);
     closingSelect.addEventListener("change", loadClosingBalances);
+    productSelect.addEventListener("change", loadShopProductAssignments);
+    loadShopProductAssignments();
 }
 
 function editDailyEntry(row, shopId, productId, entryDate) {
@@ -120,7 +124,12 @@ async function loadClosingBalances() {
     const message = document.getElementById("closingMessage");
     if (!shopId || !entryDate) return;
 
-    const { data, error } = await supabaseClient
+    const { data: assignments, error: assignmentError } = await supabaseClient
+        .from("shop_products")
+        .select("product_id, products(name)")
+        .eq("shop_id", shopId)
+        .order("product_id");
+    const { data: entries, error: entryError } = await supabaseClient
         .from("daily_stock_entries")
         .select("quantity_in, quantity_out, secondary_quantity_out, sales_amount, products(name)")
         .eq("shop_id", shopId)
@@ -128,19 +137,121 @@ async function loadClosingBalances() {
         .order("product_id");
 
     tbody.innerHTML = "";
-    if (error || !data || data.length === 0) {
-        message.textContent = "No stock entries found for this shop and date.";
+    if (assignmentError || entryError || !assignments) {
+        message.textContent = "Unable to load closing balances.";
         return;
     }
 
     message.textContent = "";
-    data.forEach(row => {
+    const entriesByProduct = new Map((entries || []).map(entry => [entry.products.name, entry]));
+    assignments.forEach(assignment => {
+        const row = entriesByProduct.get(assignment.products.name) || {};
         const quantityIn = Number(row.quantity_in ?? 0);
         const quantityOut = Number(row.quantity_out ?? 0);
         const secondaryQuantityOut = row.secondary_quantity_out ?? "";
         const remainingBalance = quantityIn - quantityOut;
-        tbody.innerHTML += `<tr><td>${row.products.name}</td><td>${quantityIn}</td><td>${quantityOut}</td><td>${secondaryQuantityOut}</td><td>${remainingBalance}</td><td>${row.sales_amount ?? ""}</td></tr>`;
+        tbody.innerHTML += `<tr><td>${assignment.products.name}</td><td>${quantityIn}</td><td>${quantityOut}</td><td>${secondaryQuantityOut}</td><td>${remainingBalance}</td><td>${row.sales_amount ?? ""}</td></tr>`;
     });
+    loadClosingDetails();
+}
+
+function closingDetailsKey() {
+    return `milkParlorClosing:${document.getElementById("closingShop").value}:${document.getElementById("closingDate").value}`;
+}
+
+function loadClosingDetails() {
+    const details = JSON.parse(localStorage.getItem(closingDetailsKey()) || "{}");
+    document.getElementById("closingMpesa").value = details.mpesa ?? "";
+    document.getElementById("closingNotes").value = details.notes ?? "";
+    document.getElementById("closingCoins").value = details.coins ?? "";
+    renderYoghurtCupSizes(details.yoghurtCups || []);
+    updateClosingMoneyTotal();
+}
+
+function renderYoghurtCupSizes(cupSizes) {
+    const container = document.getElementById("yoghurtClosingRows");
+    container.innerHTML = cupSizes.map((cup, index) => `<div class="yoghurt-cup-row">
+        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size">
+        <input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">
+        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs">
+        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups">
+        <output id="remainingCups_${index}">${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups</output>
+        <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
+    </div>`).join("");
+    container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateRemainingCups));
+}
+
+function addYoghurtCupSize() {
+    const cups = getYoghurtCupRows();
+    cups.push({ size: "", price: "", sealed: "", unsealed: "" });
+    renderYoghurtCupSizes(cups);
+}
+
+function removeYoghurtCupSize(index) {
+    const cups = getYoghurtCupRows();
+    cups.splice(index, 1);
+    renderYoghurtCupSizes(cups);
+}
+
+function getYoghurtCupRows() {
+    return Array.from(document.querySelectorAll(".yoghurt-cup-row")).map(row => ({
+        size: row.querySelector('[data-field="size"]').value.trim(),
+        price: row.querySelector('[data-field="price"]').value,
+        sealed: row.querySelector('[data-field="sealed"]').value,
+        unsealed: row.querySelector('[data-field="unsealed"]').value
+    }));
+}
+
+function updateRemainingCups() {
+    getYoghurtCupRows().forEach((cup, index) => {
+        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups`;
+    });
+    updateClosingMoneyTotal();
+}
+
+function updateClosingMoneyTotal() {
+    const mpesa = Number(document.getElementById("closingMpesa").value || 0);
+    const notes = Number(document.getElementById("closingNotes").value || 0);
+    const coins = Number(document.getElementById("closingCoins").value || 0);
+    document.getElementById("closingCashTotal").textContent = (notes + coins).toFixed(2);
+    document.getElementById("closingMoneyTotal").textContent = (mpesa + notes + coins).toFixed(2);
+}
+
+function saveClosingDetails() {
+    const yoghurtCups = getYoghurtCupRows().filter(cup => cup.size);
+    localStorage.setItem(closingDetailsKey(), JSON.stringify({
+        mpesa: document.getElementById("closingMpesa").value,
+        notes: document.getElementById("closingNotes").value,
+        coins: document.getElementById("closingCoins").value,
+        yoghurtCups
+    }));
+    updateClosingMoneyTotal();
+    document.getElementById("closingMessage").textContent = "Closing details saved.";
+}
+
+async function loadShopProductAssignments() {
+    const shopId = document.getElementById("productShop").value;
+    const container = document.getElementById("shopProductAssignments");
+    const { data: products, error: productError } = await supabaseClient.from("products").select("product_id, name").eq("is_active", true).order("name");
+    const { data: assignments, error: assignmentError } = await supabaseClient.from("shop_products").select("product_id").eq("shop_id", shopId);
+    if (productError || assignmentError || !products || !assignments) {
+        container.innerHTML = "<p>Shop products could not be loaded.</p>";
+        return;
+    }
+
+    const assignedIds = new Set(assignments.map(assignment => assignment.product_id));
+    container.innerHTML = products.map(product => `<label><input type="checkbox" value="${product.product_id}" ${assignedIds.has(product.product_id) ? "checked" : ""}> ${product.name}</label>`).join("");
+    container.querySelectorAll("input").forEach(input => input.addEventListener("change", saveShopProductAssignments));
+}
+
+async function saveShopProductAssignments() {
+    const shopId = document.getElementById("productShop").value;
+    const productIds = Array.from(document.querySelectorAll("#shopProductAssignments input:checked")).map(input => Number(input.value));
+    const { error: deleteError } = await supabaseClient.from("shop_products").delete().eq("shop_id", shopId);
+    const { error: insertError } = productIds.length
+        ? await supabaseClient.from("shop_products").insert(productIds.map(productId => ({ shop_id: shopId, product_id: productId })))
+        : { error: null };
+    document.getElementById("shopProductMessage").textContent = deleteError || insertError ? "Unable to save shop products." : "Shop products saved.";
 }
 
 function initializeExpenses() {

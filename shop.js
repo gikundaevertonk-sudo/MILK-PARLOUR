@@ -5,19 +5,24 @@ if (user) {
 }
 
 async function loadProducts() {
-    const { data, error } = await supabaseClient
-        .from("products")
-        .select("*")
-        .eq("is_active", true)
-        .order("category");
+    const { data: assignments, error } = await supabaseClient
+        .from("shop_products")
+        .select("products(*)")
+        .eq("shop_id", user.shop_id);
 
     const container = document.getElementById("productsContainer");
-    if (error || !data) {
+    if (error || !assignments) {
         container.innerHTML = "<p>Products could not be loaded. Please try again.</p>";
         return;
     }
 
-    container.innerHTML = data.map(p => {
+    const products = assignments.map(assignment => assignment.products).filter(product => product && product.is_active);
+    if (products.length === 0) {
+        container.innerHTML = "<p>No products have been assigned to this shop yet.</p>";
+        return;
+    }
+
+    container.innerHTML = products.map(p => {
         let fields = "";
         if (p.track_quantity_out) {
             fields += `<label>Qty Out (${p.unit_label}): <input type="number" step="0.01" id="qtyOut_${p.product_id}"></label>`;
@@ -35,15 +40,17 @@ async function loadProducts() {
 async function saveEntries() {
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: products, error } = await supabaseClient
-        .from("products")
-        .select("*")
-        .eq("is_active", true);
+    const { data: assignments, error } = await supabaseClient
+        .from("shop_products")
+        .select("products(*)")
+        .eq("shop_id", user.shop_id);
 
-    if (error || !products) {
+    if (error || !assignments) {
         document.getElementById("saveMessage").textContent = "Products could not be loaded. Please try again.";
         return;
     }
+
+    const products = assignments.map(assignment => assignment.products).filter(product => product && product.is_active);
 
     const entries = [];
     for (const p of products) {
