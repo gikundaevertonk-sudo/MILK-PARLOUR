@@ -2,6 +2,82 @@ const user = requireRole("Shop");
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     loadProducts();
+    loadClosingDetails();
+}
+
+function closingDetailsKey() {
+    const today = new Date().toISOString().split("T")[0];
+    return `milkParlorClosing:${user.shop_id}:${today}`;
+}
+
+function loadClosingDetails() {
+    const details = JSON.parse(localStorage.getItem(closingDetailsKey()) || "{}");
+    document.getElementById("closingMpesa").value = details.mpesa ?? "";
+    document.getElementById("closingNotes").value = details.notes ?? "";
+    document.getElementById("closingCoins").value = details.coins ?? "";
+    renderYoghurtCupSizes(details.yoghurtCups || []);
+    updateClosingMoneyTotal();
+}
+
+function renderYoghurtCupSizes(cupSizes) {
+    const container = document.getElementById("yoghurtClosingRows");
+    container.innerHTML = cupSizes.map((cup, index) => `<div class="yoghurt-cup-row">
+        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size">
+        <input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">
+        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs">
+        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups">
+        <output id="remainingCups_${index}">${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups</output>
+        <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
+    </div>`).join("");
+    container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateRemainingCups));
+}
+
+function addYoghurtCupSize() {
+    const cups = getYoghurtCupRows();
+    cups.push({ size: "", price: "", sealed: "", unsealed: "" });
+    renderYoghurtCupSizes(cups);
+}
+
+function removeYoghurtCupSize(index) {
+    const cups = getYoghurtCupRows();
+    cups.splice(index, 1);
+    renderYoghurtCupSizes(cups);
+}
+
+function getYoghurtCupRows() {
+    return Array.from(document.querySelectorAll(".yoghurt-cup-row")).map(row => ({
+        size: row.querySelector('[data-field="size"]').value.trim(),
+        price: row.querySelector('[data-field="price"]').value,
+        sealed: row.querySelector('[data-field="sealed"]').value,
+        unsealed: row.querySelector('[data-field="unsealed"]').value
+    }));
+}
+
+function updateRemainingCups() {
+    getYoghurtCupRows().forEach((cup, index) => {
+        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups`;
+    });
+    updateClosingMoneyTotal();
+}
+
+function updateClosingMoneyTotal() {
+    const mpesa = Number(document.getElementById("closingMpesa").value || 0);
+    const notes = Number(document.getElementById("closingNotes").value || 0);
+    const coins = Number(document.getElementById("closingCoins").value || 0);
+    document.getElementById("closingCashTotal").textContent = (notes + coins).toFixed(2);
+    document.getElementById("closingMoneyTotal").textContent = (mpesa + notes + coins).toFixed(2);
+}
+
+function saveClosingDetails() {
+    const yoghurtCups = getYoghurtCupRows().filter(cup => cup.size);
+    localStorage.setItem(closingDetailsKey(), JSON.stringify({
+        mpesa: document.getElementById("closingMpesa").value,
+        notes: document.getElementById("closingNotes").value,
+        coins: document.getElementById("closingCoins").value,
+        yoghurtCups
+    }));
+    updateClosingMoneyTotal();
+    document.getElementById("closingMessage").textContent = "Closing details saved.";
 }
 
 async function loadProducts() {

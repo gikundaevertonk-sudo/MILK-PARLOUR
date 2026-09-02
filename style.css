@@ -198,6 +198,8 @@ td input, td select { width: 100%; min-width: 100px; }
 .business-summary p { margin: 0; padding: 12px; border-left: 4px solid var(--accent); background: #f7faf7; }
 .closing-entry-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0 10px; }
 .closing-money-summary { padding: 12px; background: #f7faf7; font-weight: 700; }
+.shop-closing-details { margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--line); }
+.shop-closing-details h2 { margin-bottom: 0; }
 .yoghurt-cup-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr auto auto; gap: 8px; align-items: end; margin: 10px 0; }
 .yoghurt-cup-row input { width: 100%; }
 .yoghurt-cup-row output { min-width: 70px; padding: 9px 0; font-weight: 700; }
