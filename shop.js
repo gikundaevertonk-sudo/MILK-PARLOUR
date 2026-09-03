@@ -2,6 +2,14 @@ const user = requireRole("Shop");
 const productOpenings = new Map();
 let shopProducts = [];
 
+const yoghurtCupPresets = [
+    { size: "200 ml", price: 50 },
+    { size: "250 ml", price: 60 },
+    { size: "300 ml", price: 70 },
+    { size: "500 ml", price: 100 },
+    { size: "1000 ml", price: 190 }
+];
+
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     loadProducts();
@@ -38,14 +46,27 @@ function loadClosingDetails() {
     updateClosingMoneyTotal();
 }
 
-function renderYoghurtCupSizes(cupSizes) {
+function renderYoghurtCupSizes(savedCups) {
     const container = document.getElementById("yoghurtClosingRows");
+    const merged = yoghurtCupPresets.map(preset => {
+        const saved = savedCups.find(cup => cup.size === preset.size) || {};
+        return { ...preset, fixed: true, sealed: saved.sealed, unsealed: saved.unsealed, sold: saved.sold };
+    });
+    const extras = savedCups.filter(cup => !yoghurtCupPresets.some(preset => preset.size === cup.size));
+    const cupSizes = [...merged, ...extras];
+
     container.innerHTML = cupSizes.map((cup, index) => {
         const remaining = (Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0);
         const cash = Number(cup.price || 0) * Number(cup.sold || 0);
+        const sizeField = cup.fixed
+            ? `<input type="text" data-field="size" value="${cup.size}" readonly>`
+            : `<input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size (e.g. 250 ml)">`;
+        const priceField = cup.fixed
+            ? `<input type="number" data-field="price" value="${cup.price}" readonly>`
+            : `<input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">`;
         return `<div class="yoghurt-cup-row">
-        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size (e.g. 250 ml)">
-        <input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">
+        ${sizeField}
+        ${priceField}
         <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs left">
         <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups left">
         <input type="number" data-field="sold" value="${cup.sold ?? ""}" min="0" step="1" placeholder="Cups sold">
@@ -64,9 +85,15 @@ function addYoghurtCupSize() {
 }
 
 function removeYoghurtCupSize(index) {
-    const cups = getYoghurtCupRows();
-    cups.splice(index, 1);
-    renderYoghurtCupSizes(cups);
+    const row = document.querySelectorAll(".yoghurt-cup-row")[index];
+    if (yoghurtCupPresets.some(preset => preset.size === row.querySelector('[data-field="size"]').value)) {
+        row.querySelector('[data-field="sealed"]').value = "";
+        row.querySelector('[data-field="unsealed"]').value = "";
+        row.querySelector('[data-field="sold"]').value = "";
+        updateRemainingCups();
+        return;
+    }
+    row.remove();
 }
 
 function getYoghurtCupRows() {
