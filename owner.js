@@ -1,4 +1,6 @@
 const user = requireRole("Owner");
+let closingSalesTotal = 0;
+
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     document.querySelectorAll(".dashboard-btn").forEach(button => {
@@ -124,33 +126,51 @@ async function loadClosingBalances() {
     const message = document.getElementById("closingMessage");
     if (!shopId || !entryDate) return;
 
-    const { data: assignments, error: assignmentError } = await supabaseClient
-        .from("shop_products")
-        .select("product_id, products(name)")
-        .eq("shop_id", shopId)
-        .order("product_id");
-    const { data: entries, error: entryError } = await supabaseClient
-        .from("daily_stock_entries")
-        .select("quantity_in, quantity_out, secondary_quantity_out, sales_amount, products(name)")
-        .eq("shop_id", shopId)
-        .eq("entry_date", entryDate)
-        .order("product_id");
+    const previousDate = new Date(`${entryDate}T00:00:00`);
+    previousDate.setDate(previousDate.getDate() - 1);
+    const previousDateIso = previousDate.toISOString().split("T")[0];
+
+    const [assignmentResult, entryResult, previousResult] = await Promise.all([
+        supabaseClient.from("shop_products").select("product_id, products(name, unit_label, unit_price, category)").eq("shop_id", shopId).order("product_id"),
+        supabaseClient.from("daily_stock_entries").select("product_id, quantity_in, quantity_out, secondary_quantity_out, sales_amount").eq("shop_id", shopId).eq("entry_date", entryDate),
+        supabaseClient.from("daily_stock_entries").select("product_id, secondary_quantity_out").eq("shop_id", shopId).eq("entry_date", previousDateIso)
+    ]);
 
     tbody.innerHTML = "";
-    if (assignmentError || entryError || !assignments) {
+    if (assignmentResult.error || entryResult.error || previousResult.error || !assignmentResult.data) {
         message.textContent = "Unable to load closing balances.";
         return;
     }
 
     message.textContent = "";
-    const entriesByProduct = new Map((entries || []).map(entry => [entry.products.name, entry]));
-    assignments.forEach(assignment => {
-        const row = entriesByProduct.get(assignment.products.name) || {};
-        const quantityIn = Number(row.quantity_in ?? 0);
-        const quantityOut = Number(row.quantity_out ?? 0);
-        const secondaryQuantityOut = row.secondary_quantity_out ?? "";
-        const remainingBalance = quantityIn - quantityOut;
-        tbody.innerHTML += `<tr><td>${assignment.products.name}</td><td>${quantityIn}</td><td>${quantityOut}</td><td>${secondaryQuantityOut}</td><td>${remainingBalance}</td><td>${row.sales_amount ?? ""}</td></tr>`;
+    closingSalesTotal = 0;
+    const entriesByProduct = new Map((entryResult.data || []).map(entry => [entry.product_id, entry]));
+    const previousByProduct = new Map((previousResult.data || []).map(entry => [entry.product_id, entry]));
+
+    if (assignmentResult.data.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='7'>No products are assigned to this shop.</td></tr>";
+    }
+
+    assignmentResult.data.forEach(assignment => {
+        const product = assignment.products;
+        const entry = entriesByProduct.get(assignment.product_id);
+        const added = Number(entry?.quantity_in ?? 0);
+        const carried = Number(previousByProduct.get(assignment.product_id)?.secondary_quantity_out ?? 0);
+        const opening = carried + added;
+        const sold = entry?.quantity_out ?? "";
+        const remaining = entry?.secondary_quantity_out ?? "";
+        const salesValue = Number(entry?.sales_amount ?? 0);
+        closingSalesTotal += salesValue;
+        const liquid = (product.unit_label || "").toLowerCase() === "ml";
+        const yoghurt = (product.category || "").toLowerCase() === "yoghurt";
+        const priceLabel = yoghurt
+            ? "per cup size"
+            : product.unit_price == null
+                ? "not set"
+                : liquid
+                    ? `${product.unit_price} / 1000 ml`
+                    : `${product.unit_price} / ${product.unit_label}`;
+        tbody.innerHTML += `<tr><td>${product.name}</td><td>${opening} ${product.unit_label}</td><td>${added}</td><td>${sold}</td><td>${remaining}</td><td>${priceLabel}</td><td>${entry?.sales_amount ?? ""}</td></tr>`;
     });
     loadClosingDetails();
 }
@@ -170,14 +190,20 @@ function loadClosingDetails() {
 
 function renderYoghurtCupSizes(cupSizes) {
     const container = document.getElementById("yoghurtClosingRows");
-    container.innerHTML = cupSizes.map((cup, index) => `<div class="yoghurt-cup-row">
-        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size">
+    container.innerHTML = cupSizes.map((cup, index) => {
+        const remaining = (Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0);
+        const cash = Number(cup.price || 0) * Number(cup.sold || 0);
+        return `<div class="yoghurt-cup-row">
+        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size (e.g. 250 ml)">
         <input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">
-        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs">
-        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups">
-        <output id="remainingCups_${index}">${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups</output>
+        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs left">
+        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups left">
+        <input type="number" data-field="sold" value="${cup.sold ?? ""}" min="0" step="1" placeholder="Cups sold">
+        <output id="remainingCups_${index}">${remaining} cups left</output>
+        <output id="cupCash_${index}">${cash.toFixed(2)}</output>
         <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
-    </div>`).join("");
+    </div>`;
+    }).join("");
     container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateRemainingCups));
 }
 
@@ -198,13 +224,15 @@ function getYoghurtCupRows() {
         size: row.querySelector('[data-field="size"]').value.trim(),
         price: row.querySelector('[data-field="price"]').value,
         sealed: row.querySelector('[data-field="sealed"]').value,
-        unsealed: row.querySelector('[data-field="unsealed"]').value
+        unsealed: row.querySelector('[data-field="unsealed"]').value,
+        sold: row.querySelector('[data-field="sold"]').value
     }));
 }
 
 function updateRemainingCups() {
     getYoghurtCupRows().forEach((cup, index) => {
-        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups`;
+        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups left`;
+        document.getElementById(`cupCash_${index}`).textContent = (Number(cup.price || 0) * Number(cup.sold || 0)).toFixed(2);
     });
     updateClosingMoneyTotal();
 }
@@ -213,8 +241,15 @@ function updateClosingMoneyTotal() {
     const mpesa = Number(document.getElementById("closingMpesa").value || 0);
     const notes = Number(document.getElementById("closingNotes").value || 0);
     const coins = Number(document.getElementById("closingCoins").value || 0);
-    document.getElementById("closingCashTotal").textContent = (notes + coins).toFixed(2);
-    document.getElementById("closingMoneyTotal").textContent = (mpesa + notes + coins).toFixed(2);
+    const cashTotal = notes + coins;
+    const received = mpesa + cashTotal;
+    const difference = received - closingSalesTotal;
+    document.getElementById("closingCashTotal").textContent = cashTotal.toFixed(2);
+    document.getElementById("closingMoneyTotal").textContent = received.toFixed(2);
+    document.getElementById("closingExpectedTotal").textContent = closingSalesTotal.toFixed(2);
+    const differenceEl = document.getElementById("closingDifference");
+    differenceEl.textContent = difference.toFixed(2);
+    differenceEl.className = difference < 0 ? "negative" : "";
 }
 
 function saveClosingDetails() {

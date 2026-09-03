@@ -1,13 +1,32 @@
 const user = requireRole("Shop");
+const productOpenings = new Map();
+let shopProducts = [];
+
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     loadProducts();
-    loadClosingDetails();
+}
+
+function dayIso(offsetDays = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    return date.toISOString().split("T")[0];
+}
+
+function isLiquid(product) {
+    return (product.unit_label || "").toLowerCase() === "ml";
+}
+
+function isYoghurt(product) {
+    return (product.category || "").toLowerCase() === "yoghurt";
+}
+
+function trimNumber(value) {
+    return Number(value.toFixed(2));
 }
 
 function closingDetailsKey() {
-    const today = new Date().toISOString().split("T")[0];
-    return `milkParlorClosing:${user.shop_id}:${today}`;
+    return `milkParlorClosing:${user.shop_id}:${dayIso()}`;
 }
 
 function loadClosingDetails() {
@@ -21,14 +40,20 @@ function loadClosingDetails() {
 
 function renderYoghurtCupSizes(cupSizes) {
     const container = document.getElementById("yoghurtClosingRows");
-    container.innerHTML = cupSizes.map((cup, index) => `<div class="yoghurt-cup-row">
-        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size">
+    container.innerHTML = cupSizes.map((cup, index) => {
+        const remaining = (Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0);
+        const cash = Number(cup.price || 0) * Number(cup.sold || 0);
+        return `<div class="yoghurt-cup-row">
+        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size (e.g. 250 ml)">
         <input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">
-        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs">
-        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups">
-        <output id="remainingCups_${index}">${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups</output>
+        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs left">
+        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups left">
+        <input type="number" data-field="sold" value="${cup.sold ?? ""}" min="0" step="1" placeholder="Cups sold">
+        <output id="remainingCups_${index}">${remaining} cups left</output>
+        <output id="cupCash_${index}">${cash.toFixed(2)}</output>
         <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
-    </div>`).join("");
+    </div>`;
+    }).join("");
     container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateRemainingCups));
 }
 
@@ -49,13 +74,19 @@ function getYoghurtCupRows() {
         size: row.querySelector('[data-field="size"]').value.trim(),
         price: row.querySelector('[data-field="price"]').value,
         sealed: row.querySelector('[data-field="sealed"]').value,
-        unsealed: row.querySelector('[data-field="unsealed"]').value
+        unsealed: row.querySelector('[data-field="unsealed"]').value,
+        sold: row.querySelector('[data-field="sold"]').value
     }));
+}
+
+function getCupCashTotal() {
+    return getYoghurtCupRows().reduce((total, cup) => total + (Number(cup.price || 0) * Number(cup.sold || 0)), 0);
 }
 
 function updateRemainingCups() {
     getYoghurtCupRows().forEach((cup, index) => {
-        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups`;
+        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups left`;
+        document.getElementById(`cupCash_${index}`).textContent = (Number(cup.price || 0) * Number(cup.sold || 0)).toFixed(2);
     });
     updateClosingMoneyTotal();
 }
@@ -64,8 +95,20 @@ function updateClosingMoneyTotal() {
     const mpesa = Number(document.getElementById("closingMpesa").value || 0);
     const notes = Number(document.getElementById("closingNotes").value || 0);
     const coins = Number(document.getElementById("closingCoins").value || 0);
-    document.getElementById("closingCashTotal").textContent = (notes + coins).toFixed(2);
-    document.getElementById("closingMoneyTotal").textContent = (mpesa + notes + coins).toFixed(2);
+    const cashTotal = notes + coins;
+    const received = mpesa + cashTotal;
+    const productCash = shopProducts.reduce((total, product) => {
+        const result = computeProductResult(product);
+        return total + (result && !result.error ? result.cash : 0);
+    }, 0);
+    const expected = productCash + getCupCashTotal();
+    const difference = received - expected;
+    document.getElementById("closingCashTotal").textContent = cashTotal.toFixed(2);
+    document.getElementById("closingMoneyTotal").textContent = received.toFixed(2);
+    document.getElementById("closingExpectedTotal").textContent = expected.toFixed(2);
+    const differenceEl = document.getElementById("closingDifference");
+    differenceEl.textContent = difference.toFixed(2);
+    differenceEl.className = difference < 0 ? "negative" : "";
 }
 
 function saveClosingDetails() {
@@ -92,63 +135,143 @@ async function loadProducts() {
         return;
     }
 
-    const products = assignments.map(assignment => assignment.products).filter(product => product && product.is_active);
-    if (products.length === 0) {
+    shopProducts = assignments.map(assignment => assignment.products).filter(product => product && product.is_active);
+    if (shopProducts.length === 0) {
         container.innerHTML = "<p>No products have been assigned to this shop yet.</p>";
+        loadClosingDetails();
         return;
     }
 
-    container.innerHTML = products.map(p => {
-        let fields = "";
-        if (p.track_quantity_out) {
-            fields += `<label>Qty Out (${p.unit_label}): <input type="number" step="0.01" id="qtyOut_${p.product_id}"></label>`;
-        }
-        if (p.track_secondary_quantity_out) {
-            fields += `<label>Qty Out (${p.secondary_unit_label}): <input type="number" step="0.01" id="secQtyOut_${p.product_id}"></label>`;
-        }
-        if (p.track_sales_amount) {
-            fields += `<label>Sales Amount: <input type="number" step="0.01" id="sales_${p.product_id}"></label>`;
-        }
-        return `<div class="product-row"><h3>${p.name}</h3>${fields}</div>`;
+    const today = dayIso();
+    const yesterday = dayIso(-1);
+    const [todayResult, previousResult] = await Promise.all([
+        supabaseClient.from("daily_stock_entries").select("product_id, quantity_in").eq("shop_id", user.shop_id).eq("entry_date", today),
+        supabaseClient.from("daily_stock_entries").select("product_id, secondary_quantity_out").eq("shop_id", user.shop_id).eq("entry_date", yesterday)
+    ]);
+    const todayEntries = todayResult.data || [];
+    const previousEntries = previousResult.data || [];
+
+    container.innerHTML = shopProducts.map(p => {
+        const added = Number(todayEntries.find(entry => entry.product_id === p.product_id)?.quantity_in ?? 0);
+        const carried = Number(previousEntries.find(entry => entry.product_id === p.product_id)?.secondary_quantity_out ?? 0);
+        const opening = carried + added;
+        productOpenings.set(p.product_id, opening);
+        const liquid = isLiquid(p);
+        const inputHtml = liquid
+            ? `<label>Remaining (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="remaining_${p.product_id}"></label>`
+            : `<label>Sold (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="sold_${p.product_id}"></label>`;
+        const priceNote = liquid
+            ? (isYoghurt(p) ? "Yoghurt cash is counted from cup sales below." : `Price per 1000 ml: ${p.unit_price ?? "not set"}`)
+            : `Price per ${p.unit_label}: ${p.unit_price ?? "not set"}`;
+        return `<div class="product-row">
+            <h3>${p.name}</h3>
+            <p class="opening-note">Opening stock: ${trimNumber(opening)} ${p.unit_label}${added ? ` (includes ${trimNumber(added)} added this morning)` : ""}</p>
+            <p class="price-note">${priceNote}</p>
+            ${inputHtml}
+            <p class="calc-note" id="calc_${p.product_id}"></p>
+        </div>`;
     }).join("");
+
+    container.querySelectorAll("input[data-product]").forEach(input => {
+        input.addEventListener("input", () => {
+            updateProductCalc(Number(input.dataset.product));
+            updateClosingMoneyTotal();
+        });
+    });
+    loadClosingDetails();
+}
+
+function computeProductResult(product) {
+    const opening = productOpenings.get(product.product_id) ?? 0;
+    const liquid = isLiquid(product);
+    const input = document.getElementById(liquid ? `remaining_${product.product_id}` : `sold_${product.product_id}`);
+    const raw = input ? input.value : "";
+    if (raw === "") return null;
+
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) return { error: true, opening };
+
+    let sold;
+    let remaining;
+    if (liquid) {
+        remaining = value;
+        sold = opening - remaining;
+        if (sold < 0) return { error: true, opening };
+    } else {
+        sold = value;
+        remaining = opening - sold;
+        if (remaining < 0) return { error: true, opening };
+    }
+
+    const price = Number(product.unit_price ?? 0);
+    const cash = isYoghurt(product) ? 0 : liquid ? (sold / 1000) * price : sold * price;
+    return { sold, remaining, cash, liquid };
+}
+
+function updateProductCalc(productId) {
+    const product = shopProducts.find(p => p.product_id === productId);
+    const note = document.getElementById(`calc_${productId}`);
+    if (!product || !note) return;
+
+    const result = computeProductResult(product);
+    if (!result) {
+        note.textContent = "";
+        return;
+    }
+    if (result.error) {
+        note.textContent = `Value cannot be more than the opening stock (${trimNumber(result.opening)}).`;
+        return;
+    }
+
+    const parts = [`Sold: ${trimNumber(result.sold)} ${product.unit_label}`, `Remaining: ${trimNumber(result.remaining)} ${product.unit_label}`];
+    if (!isYoghurt(product)) parts.push(`Value: ${result.cash.toFixed(2)}`);
+    note.textContent = parts.join(" \u2022 ");
 }
 
 async function saveEntries() {
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data: assignments, error } = await supabaseClient
-        .from("shop_products")
-        .select("products(*)")
-        .eq("shop_id", user.shop_id);
-
-    if (error || !assignments) {
-        document.getElementById("saveMessage").textContent = "Products could not be loaded. Please try again.";
-        return;
-    }
-
-    const products = assignments.map(assignment => assignment.products).filter(product => product && product.is_active);
-
+    const today = dayIso();
     const entries = [];
-    for (const p of products) {
-        const qtyOutEl = document.getElementById(`qtyOut_${p.product_id}`);
-        const secQtyOutEl = document.getElementById(`secQtyOut_${p.product_id}`);
-        const salesEl = document.getElementById(`sales_${p.product_id}`);
+    const cupCash = getCupCashTotal();
+    let yoghurtCashAssigned = false;
 
-        const qtyOut = qtyOutEl ? qtyOutEl.value : "";
-        const secQtyOut = secQtyOutEl ? secQtyOutEl.value : "";
-        const sales = salesEl ? salesEl.value : "";
+    for (const p of shopProducts) {
+        const result = computeProductResult(p);
+        if (result && result.error) {
+            document.getElementById("saveMessage").textContent = `${p.name}: value cannot be more than the opening stock (${trimNumber(result.opening)}).`;
+            return;
+        }
+        if (!result) continue;
 
-        if (qtyOut === "" && secQtyOut === "" && sales === "") continue;
+        let salesAmount = result.cash;
+        if (isYoghurt(p)) {
+            salesAmount = yoghurtCashAssigned ? null : cupCash;
+            yoghurtCashAssigned = true;
+        }
 
         entries.push({
             shop_id: user.shop_id,
             product_id: p.product_id,
             entry_date: today,
-            quantity_out: qtyOut !== "" ? parseFloat(qtyOut) : null,
-            secondary_quantity_out: secQtyOut !== "" ? parseFloat(secQtyOut) : null,
-            sales_amount: sales !== "" ? parseFloat(sales) : null,
+            quantity_out: result.sold,
+            secondary_quantity_out: result.remaining,
+            sales_amount: salesAmount,
             quantity_out_by_user_id: user.user_id
         });
+    }
+
+    if (!yoghurtCashAssigned && cupCash > 0) {
+        const yoghurt = shopProducts.find(isYoghurt);
+        if (yoghurt) {
+            entries.push({
+                shop_id: user.shop_id,
+                product_id: yoghurt.product_id,
+                entry_date: today,
+                quantity_out: null,
+                secondary_quantity_out: null,
+                sales_amount: cupCash,
+                quantity_out_by_user_id: user.user_id
+            });
+        }
     }
 
     if (entries.length === 0) {
@@ -160,5 +283,10 @@ async function saveEntries() {
         .from("daily_stock_entries")
         .upsert(entries, { onConflict: "shop_id,product_id,entry_date" });
 
-    document.getElementById("saveMessage").textContent = saveError ? "Unable to save entries. Please try again." : "Saved successfully.";
+    if (saveError) {
+        document.getElementById("saveMessage").textContent = "Unable to save entries. Please try again.";
+        return;
+    }
+    saveClosingDetails();
+    document.getElementById("saveMessage").textContent = "Saved successfully. Closing details saved too.";
 }
