@@ -183,6 +183,7 @@ td input, td select { width: 100%; min-width: 100px; }
 .product-row { padding: 18px; margin-bottom: 12px; }
 .product-row h3 { margin: 0 0 8px; }
 .product-row label + label { margin-top: 10px; }
+.category-heading { margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 
 #productsSection > input { margin: 8px 6px 0 0; }
 #stockInProducts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 16px; }

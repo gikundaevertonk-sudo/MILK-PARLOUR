@@ -10,6 +10,8 @@ const yoghurtCupPresets = [
     { size: "1000 ml", price: 190 }
 ];
 
+const EGGS_PER_TRAY = 30;
+
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     loadProducts();
@@ -27,6 +29,14 @@ function isLiquid(product) {
 
 function isYoghurt(product) {
     return (product.category || "").toLowerCase() === "yoghurt";
+}
+
+function isEgg(product) {
+    return (product.category || "").toLowerCase() === "eggs" || (product.name || "").toLowerCase() === "eggs";
+}
+
+function eggPiecePrice(product) {
+    return Number(product.unit_price ?? 0) / EGGS_PER_TRAY;
 }
 
 function trimNumber(value) {
@@ -70,7 +80,6 @@ function renderYoghurtCupSizes(savedCups) {
         <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs left">
         <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups left">
         <input type="number" data-field="sold" value="${cup.sold ?? ""}" min="0" step="1" placeholder="Cups sold">
-        <output id="remainingCups_${index}">${remaining} cups left</output>
         <output id="cupCash_${index}">${cash.toFixed(2)}</output>
         <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
     </div>`;
@@ -112,7 +121,6 @@ function getCupCashTotal() {
 
 function updateRemainingCups() {
     getYoghurtCupRows().forEach((cup, index) => {
-        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups left`;
         document.getElementById(`cupCash_${index}`).textContent = (Number(cup.price || 0) * Number(cup.sold || 0)).toFixed(2);
     });
     updateClosingMoneyTotal();
@@ -178,25 +186,45 @@ async function loadProducts() {
     const todayEntries = todayResult.data || [];
     const previousEntries = previousResult.data || [];
 
-    container.innerHTML = shopProducts.map(p => {
+    const byCategory = new Map();
+    shopProducts.forEach(product => {
+        const category = product.category || "Products";
+        if (!byCategory.has(category)) byCategory.set(category, []);
+        byCategory.get(category).push(product);
+    });
+
+    container.innerHTML = Array.from(byCategory).map(([category, items]) => {
+        const heading = `<h2 class="category-heading">${category}</h2>`;
+        const cards = items.map(p => {
         const added = Number(todayEntries.find(entry => entry.product_id === p.product_id)?.quantity_in ?? 0);
         const carried = Number(previousEntries.find(entry => entry.product_id === p.product_id)?.secondary_quantity_out ?? 0);
-        const opening = carried + added;
+        const egg = isEgg(p);
+        const opening = egg ? carried + (added * EGGS_PER_TRAY) : carried + added;
         productOpenings.set(p.product_id, opening);
         const liquid = isLiquid(p);
-        const inputHtml = liquid
-            ? `<label>Remaining (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="remaining_${p.product_id}"></label>`
-            : `<label>Sold (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="sold_${p.product_id}"></label>`;
-        const priceNote = liquid
-            ? (isYoghurt(p) ? "Yoghurt cash is counted from cup sales below." : `Price per 1000 ml: ${p.unit_price ?? "not set"}`)
-            : `Price per ${p.unit_label}: ${p.unit_price ?? "not set"}`;
+        const inputHtml = egg
+            ? `<label>Remaining (Trays): <input type="number" min="0" step="1" data-product="${p.product_id}" id="eggTrays_${p.product_id}"></label>
+               <label>Loose pieces left: <input type="number" min="0" max="${EGGS_PER_TRAY - 1}" step="1" data-product="${p.product_id}" id="eggLoose_${p.product_id}"></label>`
+            : liquid
+                ? `<label>Remaining (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="remaining_${p.product_id}"></label>`
+                : `<label>Sold (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="sold_${p.product_id}"></label>`;
+        const openingNote = egg
+            ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} trays added this morning)` : ""}`
+            : `Opening stock: ${trimNumber(opening)} ${p.unit_label}${added ? ` (includes ${trimNumber(added)} added this morning)` : ""}`;
+        const priceNote = egg
+            ? `1 tray = ${EGGS_PER_TRAY} pieces • Price per piece: ${eggPiecePrice(p).toFixed(2)}`
+            : liquid
+                ? (isYoghurt(p) ? "Yoghurt cash is counted from cup sales below." : `Price per 1000 ml: ${p.unit_price ?? "not set"}`)
+                : `Price per ${p.unit_label}: ${p.unit_price ?? "not set"}`;
         return `<div class="product-row">
             <h3>${p.name}</h3>
-            <p class="opening-note">Opening stock: ${trimNumber(opening)} ${p.unit_label}${added ? ` (includes ${trimNumber(added)} added this morning)` : ""}</p>
+            <p class="opening-note">${openingNote}</p>
             <p class="price-note">${priceNote}</p>
             ${inputHtml}
             <p class="calc-note" id="calc_${p.product_id}"></p>
         </div>`;
+        }).join("");
+        return heading + cards;
     }).join("");
 
     container.querySelectorAll("input[data-product]").forEach(input => {
@@ -210,6 +238,22 @@ async function loadProducts() {
 
 function computeProductResult(product) {
     const opening = productOpenings.get(product.product_id) ?? 0;
+
+    if (isEgg(product)) {
+        const traysInput = document.getElementById(`eggTrays_${product.product_id}`);
+        const looseInput = document.getElementById(`eggLoose_${product.product_id}`);
+        const traysRaw = traysInput ? traysInput.value : "";
+        const looseRaw = looseInput ? looseInput.value : "";
+        if (traysRaw === "" && looseRaw === "") return null;
+        const trays = Number(traysRaw || 0);
+        const loose = Number(looseRaw || 0);
+        if (!Number.isFinite(trays) || !Number.isFinite(loose) || trays < 0 || loose < 0) return { error: true, opening };
+        const remaining = (trays * EGGS_PER_TRAY) + loose;
+        const sold = opening - remaining;
+        if (sold < 0) return { error: true, opening };
+        return { sold, remaining, cash: sold * eggPiecePrice(product), liquid: false, pieces: true };
+    }
+
     const liquid = isLiquid(product);
     const input = document.getElementById(liquid ? `remaining_${product.product_id}` : `sold_${product.product_id}`);
     const raw = input ? input.value : "";
@@ -250,7 +294,9 @@ function updateProductCalc(productId) {
         return;
     }
 
-    const parts = [`Sold: ${trimNumber(result.sold)} ${product.unit_label}`, `Remaining: ${trimNumber(result.remaining)} ${product.unit_label}`];
+    const parts = result.pieces
+        ? [`Sold: ${trimNumber(result.sold)} pieces`, `Remaining: ${trimNumber(result.remaining)} pieces`]
+        : [`Sold: ${trimNumber(result.sold)} ${product.unit_label}`, `Remaining: ${trimNumber(result.remaining)} ${product.unit_label}`];
     if (!isYoghurt(product)) parts.push(`Value: ${result.cash.toFixed(2)}`);
     note.textContent = parts.join(" \u2022 ");
 }

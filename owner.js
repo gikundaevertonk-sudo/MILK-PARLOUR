@@ -199,7 +199,6 @@ function renderYoghurtCupSizes(cupSizes) {
         <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs left">
         <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups left">
         <input type="number" data-field="sold" value="${cup.sold ?? ""}" min="0" step="1" placeholder="Cups sold">
-        <output id="remainingCups_${index}">${remaining} cups left</output>
         <output id="cupCash_${index}">${cash.toFixed(2)}</output>
         <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
     </div>`;
@@ -231,7 +230,6 @@ function getYoghurtCupRows() {
 
 function updateRemainingCups() {
     getYoghurtCupRows().forEach((cup, index) => {
-        document.getElementById(`remainingCups_${index}`).textContent = `${(Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0)} cups left`;
         document.getElementById(`cupCash_${index}`).textContent = (Number(cup.price || 0) * Number(cup.sold || 0)).toFixed(2);
     });
     updateClosingMoneyTotal();
