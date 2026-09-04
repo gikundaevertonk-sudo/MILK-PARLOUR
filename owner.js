@@ -1,6 +1,8 @@
 const user = requireRole("Owner");
 let closingSalesTotal = 0;
 
+const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry"];
+
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     document.querySelectorAll(".dashboard-btn").forEach(button => {
@@ -11,6 +13,36 @@ if (user) {
     loadProducts();
     loadShopAssignments();
     initializeExpenses();
+    loadNotifications();
+}
+
+function showNotification(message) {
+    const list = document.getElementById("notificationList");
+    if (!list) return;
+    const item = document.createElement("li");
+    item.textContent = message;
+    list.prepend(item);
+}
+
+async function loadNotifications() {
+    const today = new Date().toISOString().split("T")[0];
+    const { data: subscription } = await supabaseClient.from("subscription").select("expiry_date, is_active").limit(1).single();
+    if (subscription?.expiry_date) {
+        const daysLeft = Math.ceil((new Date(subscription.expiry_date) - new Date(today)) / 86400000);
+        if (daysLeft <= 3) {
+            showNotification(`Subscription ends on ${subscription.expiry_date} — ${daysLeft} day${daysLeft === 1 ? "" : "s"} left.`);
+        }
+    }
+    const { data: entries } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("shops(name)")
+        .eq("entry_date", today)
+        .not("quantity_out", "is", null);
+    if (entries) {
+        new Set(entries.map(entry => entry.shops.name)).forEach(shopName => {
+            showNotification(`Closing balance received from ${shopName}.`);
+        });
+    }
 }
 
 function showSection(sectionId) {
@@ -190,49 +222,33 @@ function loadClosingDetails() {
 
 function renderYoghurtCupSizes(cupSizes) {
     const container = document.getElementById("yoghurtClosingRows");
-    container.innerHTML = cupSizes.map((cup, index) => {
-        const remaining = (Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0);
-        const cash = Number(cup.price || 0) * Number(cup.sold || 0);
-        return `<div class="yoghurt-cup-row">
-        <input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size (e.g. 250 ml)">
-        <input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">
-        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs left">
-        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups left">
-        <input type="number" data-field="sold" value="${cup.sold ?? ""}" min="0" step="1" placeholder="Cups sold">
-        <output id="cupCash_${index}">${cash.toFixed(2)}</output>
-        <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
-    </div>`;
-    }).join("");
-    container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateRemainingCups));
-}
+    const presets = [
+        { size: "200 ml", price: 50 },
+        { size: "250 ml", price: 60 },
+        { size: "300 ml", price: 70 },
+        { size: "500 ml", price: 100 },
+        { size: "1000 ml", price: 190 }
+    ];
+    const merged = presets.map(preset => {
+        const saved = cupSizes.find(cup => cup.size === preset.size) || {};
+        return { ...preset, sealed: saved.sealed, unsealed: saved.unsealed };
+    });
 
-function addYoghurtCupSize() {
-    const cups = getYoghurtCupRows();
-    cups.push({ size: "", price: "", sealed: "", unsealed: "" });
-    renderYoghurtCupSizes(cups);
-}
-
-function removeYoghurtCupSize(index) {
-    const cups = getYoghurtCupRows();
-    cups.splice(index, 1);
-    renderYoghurtCupSizes(cups);
+    container.innerHTML = merged.map(cup => `<div class="yoghurt-cup-row" data-price="${cup.price}">
+        <span class="cup-size-label">${cup.size}</span>
+        <label>Sealed packs: <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="0"></label>
+        <label>Loose cups: <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="0"></label>
+    </div>`).join("");
+    container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateClosingMoneyTotal));
 }
 
 function getYoghurtCupRows() {
     return Array.from(document.querySelectorAll(".yoghurt-cup-row")).map(row => ({
-        size: row.querySelector('[data-field="size"]').value.trim(),
-        price: row.querySelector('[data-field="price"]').value,
+        size: row.querySelector(".cup-size-label").textContent.trim(),
+        price: row.dataset.price,
         sealed: row.querySelector('[data-field="sealed"]').value,
-        unsealed: row.querySelector('[data-field="unsealed"]').value,
-        sold: row.querySelector('[data-field="sold"]').value
+        unsealed: row.querySelector('[data-field="unsealed"]').value
     }));
-}
-
-function updateRemainingCups() {
-    getYoghurtCupRows().forEach((cup, index) => {
-        document.getElementById(`cupCash_${index}`).textContent = (Number(cup.price || 0) * Number(cup.sold || 0)).toFixed(2);
-    });
-    updateClosingMoneyTotal();
 }
 
 function updateClosingMoneyTotal() {
@@ -251,7 +267,7 @@ function updateClosingMoneyTotal() {
 }
 
 function saveClosingDetails() {
-    const yoghurtCups = getYoghurtCupRows().filter(cup => cup.size);
+    const yoghurtCups = getYoghurtCupRows().filter(cup => cup.sealed !== "" || cup.unsealed !== "");
     localStorage.setItem(closingDetailsKey(), JSON.stringify({
         mpesa: document.getElementById("closingMpesa").value,
         notes: document.getElementById("closingNotes").value,
@@ -367,13 +383,33 @@ async function loadStockInProducts() {
         .order("name");
 
     const container = document.getElementById("stockInProducts");
-    container.innerHTML = data.map(p => `
+    container.innerHTML = data.filter(product => (product.category || "").toLowerCase() !== "yoghurt").map(p => `
         <div>
             <label>${p.name} (${p.unit_label}):
                 <input type="number" step="0.01" id="qtyIn_${p.product_id}">
             </label>
         </div>
     `).join("");
+
+    if (data.some(product => (product.category || "").toLowerCase() === "yoghurt")) {
+        const previous = await getYesterdayYoghurtFlavours(document.getElementById("stockInShop").value);
+        container.innerHTML += `<div class="flavour-stock-in">
+            <h4>Yoghurt flavours (ml) — carried over from yesterday's closing</h4>
+            ${yoghurtFlavours.map(flavour => `<label>${flavour}: <input type="number" min="0" step="0.01" id="flavourIn_${flavour}"><span class="carry-note">Yesterday's remaining: ${previous[flavour] ?? 0} ml</span></label>`).join("")}
+        </div>`;
+    }
+}
+
+async function getYesterdayYoghurtFlavours(shopId) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const key = `milkParlorClosing:${shopId}:${yesterday.toISOString().split("T")[0]}`;
+    const details = JSON.parse(localStorage.getItem(key) || "{}");
+    const carried = {};
+    (details.yoghurtFlavours || []).forEach(entry => {
+        carried[entry.flavour] = entry.remaining;
+    });
+    return carried;
 }
 
 async function saveStockIn() {
@@ -402,8 +438,22 @@ async function saveStockIn() {
             }, { onConflict: "shop_id,product_id,entry_date" });
     }
 
+    const flavourAdds = yoghurtFlavours
+        .map(flavour => ({ flavour, remaining: document.getElementById(`flavourIn_${flavour}`)?.value ?? "" }))
+        .filter(entry => entry.remaining !== "");
+    if (flavourAdds.length) {
+        const key = closingDetailsKeyFor(shopId, today);
+        const details = JSON.parse(localStorage.getItem(key) || "{}");
+        details.yoghurtFlavoursAdded = flavourAdds;
+        localStorage.setItem(key, JSON.stringify(details));
+    }
+
     document.getElementById("stockInMessage").textContent = "Saved successfully.";
     loadTodayEntries();
+}
+
+function closingDetailsKeyFor(shopId, entryDate) {
+    return `milkParlorClosing:${shopId}:${entryDate}`;
 }
 
 async function loadProducts() {

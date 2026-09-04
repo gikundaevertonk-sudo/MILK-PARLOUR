@@ -11,10 +11,20 @@ const yoghurtCupPresets = [
 ];
 
 const EGGS_PER_TRAY = 30;
+const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry"];
+const flavourInputs = new Map();
 
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     loadProducts();
+}
+
+function showNotification(message) {
+    const list = document.getElementById("notificationList");
+    if (!list) return;
+    const item = document.createElement("li");
+    item.textContent = message;
+    list.prepend(item);
 }
 
 function dayIso(offsetDays = 0) {
@@ -52,6 +62,12 @@ function loadClosingDetails() {
     document.getElementById("closingMpesa").value = details.mpesa ?? "";
     document.getElementById("closingNotes").value = details.notes ?? "";
     document.getElementById("closingCoins").value = details.coins ?? "";
+    yoghurtFlavours.forEach(flavour => {
+        const input = document.getElementById(`flavour_${flavour}`);
+        if (input && details.yoghurtFlavours) {
+            input.value = details.yoghurtFlavours.find(entry => entry.flavour === flavour)?.remaining ?? "";
+        }
+    });
     renderYoghurtCupSizes(details.yoghurtCups || []);
     updateClosingMoneyTotal();
 }
@@ -60,70 +76,28 @@ function renderYoghurtCupSizes(savedCups) {
     const container = document.getElementById("yoghurtClosingRows");
     const merged = yoghurtCupPresets.map(preset => {
         const saved = savedCups.find(cup => cup.size === preset.size) || {};
-        return { ...preset, fixed: true, sealed: saved.sealed, unsealed: saved.unsealed, sold: saved.sold };
+        return { ...preset, sealed: saved.sealed, unsealed: saved.unsealed };
     });
-    const extras = savedCups.filter(cup => !yoghurtCupPresets.some(preset => preset.size === cup.size));
-    const cupSizes = [...merged, ...extras];
 
-    container.innerHTML = cupSizes.map((cup, index) => {
-        const remaining = (Number(cup.sealed || 0) * 25) + Number(cup.unsealed || 0);
-        const cash = Number(cup.price || 0) * Number(cup.sold || 0);
-        const sizeField = cup.fixed
-            ? `<input type="text" data-field="size" value="${cup.size}" readonly>`
-            : `<input type="text" data-field="size" value="${cup.size || ""}" placeholder="Cup size (e.g. 250 ml)">`;
-        const priceField = cup.fixed
-            ? `<input type="number" data-field="price" value="${cup.price}" readonly>`
-            : `<input type="number" data-field="price" value="${cup.price ?? ""}" min="0" step="0.01" placeholder="Price per cup">`;
-        return `<div class="yoghurt-cup-row">
-        ${sizeField}
-        ${priceField}
-        <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="Sealed packs left">
-        <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="Loose cups left">
-        <input type="number" data-field="sold" value="${cup.sold ?? ""}" min="0" step="1" placeholder="Cups sold">
-        <output id="cupCash_${index}">${cash.toFixed(2)}</output>
-        <button type="button" onclick="removeYoghurtCupSize(${index})">Remove</button>
-    </div>`;
-    }).join("");
-    container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateRemainingCups));
-}
-
-function addYoghurtCupSize() {
-    const cups = getYoghurtCupRows();
-    cups.push({ size: "", price: "", sealed: "", unsealed: "" });
-    renderYoghurtCupSizes(cups);
-}
-
-function removeYoghurtCupSize(index) {
-    const row = document.querySelectorAll(".yoghurt-cup-row")[index];
-    if (yoghurtCupPresets.some(preset => preset.size === row.querySelector('[data-field="size"]').value)) {
-        row.querySelector('[data-field="sealed"]').value = "";
-        row.querySelector('[data-field="unsealed"]').value = "";
-        row.querySelector('[data-field="sold"]').value = "";
-        updateRemainingCups();
-        return;
-    }
-    row.remove();
+    container.innerHTML = merged.map(cup => `<div class="yoghurt-cup-row" data-price="${cup.price}">
+        <span class="cup-size-label">${cup.size}</span>
+        <label>Sealed packs: <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="0"></label>
+        <label>Loose cups: <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="0"></label>
+    </div>`).join("");
+    container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateClosingMoneyTotal));
 }
 
 function getYoghurtCupRows() {
     return Array.from(document.querySelectorAll(".yoghurt-cup-row")).map(row => ({
-        size: row.querySelector('[data-field="size"]').value.trim(),
-        price: row.querySelector('[data-field="price"]').value,
+        size: row.querySelector(".cup-size-label").textContent.trim(),
+        price: row.dataset.price,
         sealed: row.querySelector('[data-field="sealed"]').value,
-        unsealed: row.querySelector('[data-field="unsealed"]').value,
-        sold: row.querySelector('[data-field="sold"]').value
+        unsealed: row.querySelector('[data-field="unsealed"]').value
     }));
 }
 
 function getCupCashTotal() {
-    return getYoghurtCupRows().reduce((total, cup) => total + (Number(cup.price || 0) * Number(cup.sold || 0)), 0);
-}
-
-function updateRemainingCups() {
-    getYoghurtCupRows().forEach((cup, index) => {
-        document.getElementById(`cupCash_${index}`).textContent = (Number(cup.price || 0) * Number(cup.sold || 0)).toFixed(2);
-    });
-    updateClosingMoneyTotal();
+    return 0;
 }
 
 function updateClosingMoneyTotal() {
@@ -147,12 +121,13 @@ function updateClosingMoneyTotal() {
 }
 
 function saveClosingDetails() {
-    const yoghurtCups = getYoghurtCupRows().filter(cup => cup.size);
+    const yoghurtCups = getYoghurtCupRows().filter(cup => cup.sealed !== "" || cup.unsealed !== "");
     localStorage.setItem(closingDetailsKey(), JSON.stringify({
         mpesa: document.getElementById("closingMpesa").value,
         notes: document.getElementById("closingNotes").value,
         coins: document.getElementById("closingCoins").value,
-        yoghurtCups
+        yoghurtCups,
+        yoghurtFlavours: getFlavourRemaining().filter(entry => entry.remaining !== "")
     }));
     updateClosingMoneyTotal();
     document.getElementById("closingMessage").textContent = "Closing details saved.";
@@ -195,7 +170,7 @@ async function loadProducts() {
 
     container.innerHTML = Array.from(byCategory).map(([category, items]) => {
         const heading = `<h2 class="category-heading">${category}</h2>`;
-        const cards = items.map(p => {
+        const cards = items.filter(p => !isYoghurt(p)).map(p => {
         const added = Number(todayEntries.find(entry => entry.product_id === p.product_id)?.quantity_in ?? 0);
         const carried = Number(previousEntries.find(entry => entry.product_id === p.product_id)?.secondary_quantity_out ?? 0);
         const egg = isEgg(p);
@@ -224,8 +199,13 @@ async function loadProducts() {
             <p class="calc-note" id="calc_${p.product_id}"></p>
         </div>`;
         }).join("");
-        return heading + cards;
+        return heading + cards + (items.some(isYoghurt) ? renderYoghurtFlavourRows(category) : "");
     }).join("");
+    flavourInputs.clear();
+    container.querySelectorAll("input[data-flavour]").forEach(input => {
+        flavourInputs.set(input.dataset.flavour, input);
+        input.addEventListener("input", updateClosingMoneyTotal);
+    });
 
     container.querySelectorAll("input[data-product]").forEach(input => {
         input.addEventListener("input", () => {
@@ -301,6 +281,21 @@ function updateProductCalc(productId) {
     note.textContent = parts.join(" \u2022 ");
 }
 
+function renderYoghurtFlavourRows(category) {
+    return `<div class="product-row flavour-row">
+        <h3>${category} Flavours</h3>
+        <p class="price-note">Cash is counted from cup sales below. Enter what remained in ml per flavour.</p>
+        ${yoghurtFlavours.map(flavour => `<label>${flavour} remaining (ml): <input type="number" min="0" step="0.01" data-flavour="${flavour}" id="flavour_${flavour}"></label>`).join("")}
+    </div>`;
+}
+
+function getFlavourRemaining() {
+    return yoghurtFlavours.map(flavour => ({
+        flavour,
+        remaining: document.getElementById(`flavour_${flavour}`)?.value ?? ""
+    }));
+}
+
 async function saveEntries() {
     const today = dayIso();
     const entries = [];
@@ -308,6 +303,7 @@ async function saveEntries() {
     let yoghurtCashAssigned = false;
 
     for (const p of shopProducts) {
+        if (isYoghurt(p)) continue;
         const result = computeProductResult(p);
         if (result && result.error) {
             document.getElementById("saveMessage").textContent = `${p.name}: value cannot be more than the opening stock (${trimNumber(result.opening)}).`;
@@ -328,6 +324,21 @@ async function saveEntries() {
             quantity_out: result.sold,
             secondary_quantity_out: result.remaining,
             sales_amount: salesAmount,
+            quantity_out_by_user_id: user.user_id
+        });
+    }
+
+    const flavourEntries = getFlavourRemaining().filter(entry => entry.remaining !== "");
+    const yoghurt = shopProducts.find(isYoghurt);
+    if (yoghurt && (flavourEntries.length > 0 || cupCash > 0)) {
+        const flavourTotal = flavourEntries.reduce((total, entry) => total + Number(entry.remaining), 0);
+        entries.push({
+            shop_id: user.shop_id,
+            product_id: yoghurt.product_id,
+            entry_date: today,
+            quantity_out: null,
+            secondary_quantity_out: flavourEntries.length ? flavourTotal : null,
+            sales_amount: cupCash > 0 ? cupCash : null,
             quantity_out_by_user_id: user.user_id
         });
     }
@@ -361,5 +372,6 @@ async function saveEntries() {
         return;
     }
     saveClosingDetails();
+    showNotification(`Closing balance sent for ${today}.`);
     document.getElementById("saveMessage").textContent = "Saved successfully. Closing details saved too.";
 }

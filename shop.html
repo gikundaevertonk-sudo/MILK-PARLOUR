@@ -34,18 +34,21 @@
                     </label>
                 </div>
                 <div class="closing-money-summary">
-                    <span>Expected sales: <strong id="closingExpectedTotal">0.00</strong></span>
                     <span>Cash total: <strong id="closingCashTotal">0.00</strong></span>
                     <span>Money received: <strong id="closingMoneyTotal">0.00</strong></span>
-                    <span>Difference: <strong id="closingDifference">0.00</strong></span>
+                    <span hidden>Expected sales: <strong id="closingExpectedTotal">0.00</strong></span>
+                    <span hidden>Difference: <strong id="closingDifference">0.00</strong></span>
                 </div>
                 <h3>Yoghurt Cups</h3>
-                <p class="section-note">Sealed pack = 25 cups. Cup cash = price per cup × cups sold. Preset prices: 200 ml = 50, 250 ml = 60, 300 ml = 70, 500 ml = 100, 1000 ml = 190.</p>
+                <p class="section-note">Enter sealed packs (1 pack = 25 cups) and loose cups left per size.</p>
                 <div id="yoghurtClosingRows"></div>
-                <button type="button" onclick="addYoghurtCupSize()">Add Cup Size</button>
                 <button type="button" onclick="saveClosingDetails()">Save Closing Details</button>
                 <p id="closingMessage"></p>
             </section>
+        </div>
+        <div class="dashboard-panel notification-panel" id="notificationPanel">
+            <h2>Notifications</h2>
+            <ul id="notificationList"></ul>
         </div>
     </main>
 

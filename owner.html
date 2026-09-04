@@ -47,6 +47,7 @@
 
     <section id="todaySection" class="dashboard-section" aria-labelledby="todayHeading">
         <h2 id="todayHeading">Today's Stock Entries</h2>
+        <div id="notificationPanel" class="notification-panel"><h3>Notifications</h3><ul id="notificationList"></ul></div>
         <label for="todayShop">Shop:
             <select id="todayShop"></select>
         </label>
@@ -103,9 +104,8 @@
             <span>Difference: <strong id="closingDifference">0.00</strong></span>
         </div>
         <h3>Yoghurt Cups</h3>
-        <p class="section-note">Sealed pack = 25 cups. Cup cash = price per cup × cups sold.</p>
+        <p class="section-note">Enter sealed packs (1 pack = 25 cups) and loose cups left per size.</p>
         <div id="yoghurtClosingRows"></div>
-        <button type="button" onclick="addYoghurtCupSize()">Add Cup Size</button>
         <button type="button" onclick="saveClosingDetails()">Save Closing Details</button>
         <p id="closingMessage"></p>
     </section>

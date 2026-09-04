@@ -184,6 +184,15 @@ td input, td select { width: 100%; min-width: 100px; }
 .product-row h3 { margin: 0 0 8px; }
 .product-row label + label { margin-top: 10px; }
 .category-heading { margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.notification-panel { margin-bottom: 20px; padding: 16px 20px; border-left: 4px solid var(--accent); background: #fffdf5; }
+.notification-panel h2, .notification-panel h3 { margin: 0 0 8px; font-size: 18px; }
+.notification-panel ul { margin: 0; padding-left: 20px; }
+.notification-panel li { margin: 4px 0; }
+.cup-size-label { font-weight: 700; }
+.yoghurt-cup-row label { margin: 0; font-weight: 400; }
+.flavour-stock-in { grid-column: 1 / -1; margin-top: 8px; padding: 12px; border: 1px dashed var(--line); }
+.flavour-stock-in h4 { margin: 0 0 8px; }
+.carry-note { display: block; color: var(--ink-muted); font-size: 13px; font-weight: 400; }
 
 #productsSection > input { margin: 8px 6px 0 0; }
 #stockInProducts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 16px; }
