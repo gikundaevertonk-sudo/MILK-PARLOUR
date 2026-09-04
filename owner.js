@@ -22,6 +22,24 @@ function showNotification(message) {
     const item = document.createElement("li");
     item.textContent = message;
     list.prepend(item);
+    notificationCount += 1;
+    updateNotificationBadge();
+}
+
+let notificationCount = 0;
+
+function updateNotificationBadge() {
+    document.querySelectorAll(".notification-badge").forEach(badge => {
+        badge.hidden = notificationCount === 0;
+        badge.textContent = notificationCount;
+    });
+}
+
+function toggleNotifications() {
+    const popover = document.getElementById("notificationPopover");
+    const isOpen = popover.hidden;
+    popover.hidden = !isOpen;
+    document.querySelectorAll(".notification-bell").forEach(bell => bell.setAttribute("aria-expanded", String(isOpen)));
 }
 
 async function loadNotifications() {
@@ -42,6 +60,9 @@ async function loadNotifications() {
         new Set(entries.map(entry => entry.shops.name)).forEach(shopName => {
             showNotification(`Closing balance received from ${shopName}.`);
         });
+    }
+    if (notificationCount === 0) {
+        document.getElementById("notificationList").innerHTML = "<li>No new notifications.</li>";
     }
 }
 
@@ -211,13 +232,29 @@ function closingDetailsKey() {
     return `milkParlorClosing:${document.getElementById("closingShop").value}:${document.getElementById("closingDate").value}`;
 }
 
+let closingMoneyValues = { mpesa: 0, notes: 0, coins: 0 };
+
 function loadClosingDetails() {
     const details = JSON.parse(localStorage.getItem(closingDetailsKey()) || "{}");
-    document.getElementById("closingMpesa").value = details.mpesa ?? "";
-    document.getElementById("closingNotes").value = details.notes ?? "";
-    document.getElementById("closingCoins").value = details.coins ?? "";
+    closingMoneyValues = {
+        mpesa: Number(details.mpesa || 0),
+        notes: Number(details.notes || 0),
+        coins: Number(details.coins || 0)
+    };
+    document.getElementById("closingMpesa").textContent = closingMoneyValues.mpesa.toFixed(2);
+    document.getElementById("closingNotes").textContent = closingMoneyValues.notes.toFixed(2);
+    document.getElementById("closingCoins").textContent = closingMoneyValues.coins.toFixed(2);
     renderYoghurtCupSizes(details.yoghurtCups || []);
+    renderFlavourRemaining(details.yoghurtFlavours || []);
     updateClosingMoneyTotal();
+}
+
+function renderFlavourRemaining(flavours) {
+    const list = document.getElementById("flavourRemainingList");
+    const entries = flavours.filter(entry => entry.remaining !== "" && entry.remaining != null);
+    list.innerHTML = entries.length
+        ? entries.map(entry => `<li>${entry.flavour}: ${entry.remaining} ml remaining</li>`).join("")
+        : "<li>No flavour counts submitted.</li>";
 }
 
 function renderYoghurtCupSizes(cupSizes) {
@@ -229,34 +266,23 @@ function renderYoghurtCupSizes(cupSizes) {
         { size: "500 ml", price: 100 },
         { size: "1000 ml", price: 190 }
     ];
-    const merged = presets.map(preset => {
+    const submitted = presets.map(preset => {
         const saved = cupSizes.find(cup => cup.size === preset.size) || {};
         return { ...preset, sealed: saved.sealed, unsealed: saved.unsealed };
-    });
+    }).filter(cup => (cup.sealed !== undefined && cup.sealed !== "") || (cup.unsealed !== undefined && cup.unsealed !== ""));
 
-    container.innerHTML = merged.map(cup => `<div class="yoghurt-cup-row" data-price="${cup.price}">
-        <span class="cup-size-label">${cup.size}</span>
-        <label>Sealed packs: <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="0"></label>
-        <label>Loose cups: <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="0"></label>
-    </div>`).join("");
-    container.querySelectorAll("input").forEach(input => input.addEventListener("input", updateClosingMoneyTotal));
-}
-
-function getYoghurtCupRows() {
-    return Array.from(document.querySelectorAll(".yoghurt-cup-row")).map(row => ({
-        size: row.querySelector(".cup-size-label").textContent.trim(),
-        price: row.dataset.price,
-        sealed: row.querySelector('[data-field="sealed"]').value,
-        unsealed: row.querySelector('[data-field="unsealed"]').value
-    }));
+    container.innerHTML = submitted.length
+        ? submitted.map(cup => {
+            const sealed = Number(cup.sealed || 0);
+            const loose = Number(cup.unsealed || 0);
+            return `<div class="yoghurt-cup-row read-only"><span class="cup-size-label">${cup.size}</span><span>${sealed} sealed packs</span><span>${loose} loose cups</span><strong>${sealed * 25 + loose} cups left</strong></div>`;
+        }).join("")
+        : "<p class=\"section-note\">No cup counts submitted.</p>";
 }
 
 function updateClosingMoneyTotal() {
-    const mpesa = Number(document.getElementById("closingMpesa").value || 0);
-    const notes = Number(document.getElementById("closingNotes").value || 0);
-    const coins = Number(document.getElementById("closingCoins").value || 0);
-    const cashTotal = notes + coins;
-    const received = mpesa + cashTotal;
+    const cashTotal = closingMoneyValues.notes + closingMoneyValues.coins;
+    const received = closingMoneyValues.mpesa + cashTotal;
     const difference = received - closingSalesTotal;
     document.getElementById("closingCashTotal").textContent = cashTotal.toFixed(2);
     document.getElementById("closingMoneyTotal").textContent = received.toFixed(2);
@@ -264,18 +290,6 @@ function updateClosingMoneyTotal() {
     const differenceEl = document.getElementById("closingDifference");
     differenceEl.textContent = difference.toFixed(2);
     differenceEl.className = difference < 0 ? "negative" : "";
-}
-
-function saveClosingDetails() {
-    const yoghurtCups = getYoghurtCupRows().filter(cup => cup.sealed !== "" || cup.unsealed !== "");
-    localStorage.setItem(closingDetailsKey(), JSON.stringify({
-        mpesa: document.getElementById("closingMpesa").value,
-        notes: document.getElementById("closingNotes").value,
-        coins: document.getElementById("closingCoins").value,
-        yoghurtCups
-    }));
-    updateClosingMoneyTotal();
-    document.getElementById("closingMessage").textContent = "Closing details saved.";
 }
 
 async function loadShopProductAssignments() {

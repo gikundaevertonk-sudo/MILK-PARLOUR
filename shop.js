@@ -19,14 +19,6 @@ if (user) {
     loadProducts();
 }
 
-function showNotification(message) {
-    const list = document.getElementById("notificationList");
-    if (!list) return;
-    const item = document.createElement("li");
-    item.textContent = message;
-    list.prepend(item);
-}
-
 function dayIso(offsetDays = 0) {
     const date = new Date();
     date.setDate(date.getDate() + offsetDays);
@@ -372,6 +364,5 @@ async function saveEntries() {
         return;
     }
     saveClosingDetails();
-    showNotification(`Closing balance sent for ${today}.`);
     document.getElementById("saveMessage").textContent = "Saved successfully. Closing details saved too.";
 }

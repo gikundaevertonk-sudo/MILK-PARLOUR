@@ -10,9 +10,12 @@
 
     <div class="app-shell owner-shell">
         <aside class="sidebar no-print" aria-label="Owner dashboard navigation">
-            <div class="brand">
-                <span class="brand-mark" aria-hidden="true">MP</span>
-                <span>Milk Parlor</span>
+            <div class="sidebar-top">
+                <div class="brand">
+                    <span class="brand-mark" aria-hidden="true">MP</span>
+                    <span>Milk Parlor</span>
+                </div>
+                <button class="notification-bell" type="button" onclick="toggleNotifications()" aria-label="Notifications" aria-expanded="false">&#128276;<span class="notification-badge" hidden>0</span></button>
             </div>
             <p class="sidebar-label">Owner workspace</p>
             <nav class="dashboard-nav" aria-label="Dashboard sections">
@@ -30,8 +33,14 @@
             </div>
         </aside>
 
+        <div class="notification-popover no-print" id="notificationPopover" hidden>
+            <h3>Notifications</h3>
+            <ul id="notificationList"></ul>
+        </div>
+
         <main class="dashboard-content">
             <header class="mobile-header no-print">
+                <button class="notification-bell" type="button" onclick="toggleNotifications()" aria-label="Notifications" aria-expanded="false">&#128276;<span class="notification-badge" hidden>0</span></button>
                 <div class="brand"><span class="brand-mark" aria-hidden="true">MP</span><span>Milk Parlor</span></div>
                 <nav class="mobile-dashboard-nav" aria-label="Dashboard sections">
                     <button class="dashboard-btn is-active" type="button" data-section="todaySection" aria-controls="todaySection" aria-expanded="true">Today</button>
@@ -47,7 +56,6 @@
 
     <section id="todaySection" class="dashboard-section" aria-labelledby="todayHeading">
         <h2 id="todayHeading">Today's Stock Entries</h2>
-        <div id="notificationPanel" class="notification-panel"><h3>Notifications</h3><ul id="notificationList"></ul></div>
         <label for="todayShop">Shop:
             <select id="todayShop"></select>
         </label>
@@ -86,17 +94,12 @@
             </thead>
             <tbody id="closingTableBody"></tbody>
         </table>
-        <div class="closing-entry-grid">
-            <label for="closingMpesa">M-Pesa amount:
-                <input type="number" id="closingMpesa" min="0" step="0.01" placeholder="0.00" oninput="updateClosingMoneyTotal()">
-            </label>
-            <label for="closingNotes">Cash notes:
-                <input type="number" id="closingNotes" min="0" step="0.01" placeholder="0.00" oninput="updateClosingMoneyTotal()">
-            </label>
-            <label for="closingCoins">Cash coins:
-                <input type="number" id="closingCoins" min="0" step="0.01" placeholder="0.00" oninput="updateClosingMoneyTotal()">
-            </label>
-        </div>
+        <h3>Money Submitted</h3>
+        <dl class="closing-money-view">
+            <div><dt>M-Pesa</dt><dd id="closingMpesa">0.00</dd></div>
+            <div><dt>Cash notes</dt><dd id="closingNotes">0.00</dd></div>
+            <div><dt>Cash coins</dt><dd id="closingCoins">0.00</dd></div>
+        </dl>
         <div class="closing-money-summary">
             <span>Expected sales: <strong id="closingExpectedTotal">0.00</strong></span>
             <span>Cash total: <strong id="closingCashTotal">0.00</strong></span>
@@ -104,9 +107,10 @@
             <span>Difference: <strong id="closingDifference">0.00</strong></span>
         </div>
         <h3>Yoghurt Cups</h3>
-        <p class="section-note">Enter sealed packs (1 pack = 25 cups) and loose cups left per size.</p>
+        <p class="section-note">Counts submitted by the shop attendant (1 sealed pack = 25 cups).</p>
         <div id="yoghurtClosingRows"></div>
-        <button type="button" onclick="saveClosingDetails()">Save Closing Details</button>
+        <h3>Yoghurt Flavours Remaining</h3>
+        <ul id="flavourRemainingList" class="flavour-list"></ul>
         <p id="closingMessage"></p>
     </section>
 

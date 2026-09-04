@@ -184,6 +184,20 @@ td input, td select { width: 100%; min-width: 100px; }
 .product-row h3 { margin: 0 0 8px; }
 .product-row label + label { margin-top: 10px; }
 .category-heading { margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.sidebar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.notification-bell { position: relative; display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid rgba(255,255,255,0.35); border-radius: 50%; color: #fff; background: transparent; font-size: 18px; }
+.notification-bell:hover { background: rgba(255,255,255,0.12); }
+.notification-badge { position: absolute; top: -4px; right: -4px; display: grid; min-width: 18px; height: 18px; place-items: center; padding: 0 4px; border-radius: 9px; color: #fff; background: var(--accent); font-size: 11px; font-weight: 700; }
+.notification-popover { position: fixed; top: 74px; left: 16px; z-index: 30; width: min(320px, calc(100vw - 32px)); max-height: 60vh; overflow: auto; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: #fffdf5; box-shadow: var(--shadow); }
+.notification-popover h3 { margin: 0 0 8px; font-size: 16px; }
+.notification-popover ul { margin: 0; padding-left: 18px; }
+.notification-popover li { margin: 6px 0; }
+.closing-money-view { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 10px 0; }
+.closing-money-view div { padding: 12px; border: 1px solid var(--line); background: #f7faf7; }
+.closing-money-view dt { color: var(--ink-muted); font-size: 13px; }
+.closing-money-view dd { margin: 4px 0 0; font-size: 20px; font-weight: 700; }
+.yoghurt-cup-row.read-only { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.flavour-list { margin: 4px 0 16px; padding-left: 20px; }
 .notification-panel { margin-bottom: 20px; padding: 16px 20px; border-left: 4px solid var(--accent); background: #fffdf5; }
 .notification-panel h2, .notification-panel h3 { margin: 0 0 8px; font-size: 18px; }
 .notification-panel ul { margin: 0; padding-left: 20px; }
@@ -234,7 +248,7 @@ td input, td select { width: 100%; min-width: 100px; }
     nav { padding: 12px 16px; }
     .owner-shell { display: block; }
     .sidebar { display: none; }
-    .mobile-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; margin: -20px -16px 20px; padding: 14px 16px; background: var(--ink); }
+    .mobile-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; margin: -20px -16px 20px; padding: 14px 16px; background: var(--ink); }
     .mobile-header .brand { min-width: 0; font-size: 18px; white-space: nowrap; }
     .mobile-header .logout-button { min-height: 44px; margin: 0; padding: 7px 10px; font-size: 14px; white-space: nowrap; }
     .mobile-dashboard-nav { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 6px; padding: 14px 0 0; }
@@ -256,6 +270,7 @@ td input, td select { width: 100%; min-width: 100px; }
     .filter-controls { display: grid; grid-template-columns: 1fr; }
     .expense-form, .business-summary { grid-template-columns: 1fr; }
     .closing-entry-grid, .yoghurt-cup-row { grid-template-columns: 1fr; }
+    .closing-money-view { grid-template-columns: 1fr; }
     .yoghurt-cup-row output { padding: 0; }
     .password-field .password-toggle { min-height: 44px; }
 }
