@@ -35,6 +35,14 @@ function packPieceCount(product) {
     return 0;
 }
 
+function formatPackPieces(value, packSize) {
+    if (value === "" || value == null) return "";
+    const pieces = Number(value);
+    const packs = Math.floor(pieces / packSize);
+    const loose = pieces % packSize;
+    return `${packs} pack${packs === 1 ? "" : "s"}${loose ? ` + ${loose} piece${loose === 1 ? "" : "s"}` : ""} (${pieces} pieces)`;
+}
+
 let notificationCount = 0;
 
 function updateNotificationBadge() {
@@ -243,12 +251,16 @@ async function loadClosingBalances() {
                 : liquid
                     ? `${product.unit_price} / 1000 ml`
                     : `${product.unit_price} / ${product.unit_label}`;
+                const openingLabel = packSize ? formatPackPieces(opening, packSize) : `${opening} ${product.unit_label}`;
+                const addedLabel = packSize ? formatPackPieces(added, packSize) : added;
+                const soldLabel = packSize ? formatPackPieces(sold, packSize) : sold;
+                const remainingLabel = packSize ? formatPackPieces(remaining, packSize) : remaining;
         const category = product.category || "Products";
         if (category !== currentCategory) {
             currentCategory = category;
             tbody.innerHTML += `<tr class="category-row"><th colspan="7">${category}</th></tr>`;
         }
-        tbody.innerHTML += `<tr><td>${product.name}</td><td>${opening} ${product.unit_label}</td><td>${added}</td><td>${sold}</td><td>${remaining}</td><td>${priceLabel}</td><td>${entry?.sales_amount ?? ""}</td></tr>`;
+        tbody.innerHTML += `<tr><td>${product.name}</td><td>${openingLabel}</td><td>${addedLabel}</td><td>${soldLabel}</td><td>${remainingLabel}</td><td>${priceLabel}</td><td>${entry?.sales_amount ?? ""}</td></tr>`;
     });
     loadClosingDetails();
 }
