@@ -45,22 +45,26 @@ function trimNumber(value) {
     return Number(value.toFixed(2));
 }
 
-function closingDetailsKey() {
-    return `milkParlorClosing:${user.shop_id}:${dayIso()}`;
-}
+async function loadClosingDetails() {
+    const { data, error } = await supabaseClient
+        .from("closing_details")
+        .select("mpesa_amount, cash_notes, cash_coins, yoghurt_cups, yoghurt_flavours")
+        .eq("shop_id", user.shop_id)
+        .eq("entry_date", dayIso())
+        .maybeSingle();
+    if (error) return;
 
-function loadClosingDetails() {
-    const details = JSON.parse(localStorage.getItem(closingDetailsKey()) || "{}");
-    document.getElementById("closingMpesa").value = details.mpesa ?? "";
-    document.getElementById("closingNotes").value = details.notes ?? "";
-    document.getElementById("closingCoins").value = details.coins ?? "";
+    const details = data || {};
+    document.getElementById("closingMpesa").value = details.mpesa_amount ?? "";
+    document.getElementById("closingNotes").value = details.cash_notes ?? "";
+    document.getElementById("closingCoins").value = details.cash_coins ?? "";
     yoghurtFlavours.forEach(flavour => {
         const input = document.getElementById(`flavour_${flavour}`);
-        if (input && details.yoghurtFlavours) {
-            input.value = details.yoghurtFlavours.find(entry => entry.flavour === flavour)?.remaining ?? "";
+        if (input && details.yoghurt_flavours) {
+            input.value = details.yoghurt_flavours.find(entry => entry.flavour === flavour)?.remaining ?? "";
         }
     });
-    renderYoghurtCupSizes(details.yoghurtCups || []);
+    renderYoghurtCupSizes(details.yoghurt_cups || []);
     updateClosingMoneyTotal();
 }
 
@@ -112,17 +116,24 @@ function updateClosingMoneyTotal() {
     differenceEl.className = difference < 0 ? "negative" : "";
 }
 
-function saveClosingDetails() {
+async function saveClosingDetails() {
     const yoghurtCups = getYoghurtCupRows().filter(cup => cup.sealed !== "" || cup.unsealed !== "");
-    localStorage.setItem(closingDetailsKey(), JSON.stringify({
-        mpesa: document.getElementById("closingMpesa").value,
-        notes: document.getElementById("closingNotes").value,
-        coins: document.getElementById("closingCoins").value,
-        yoghurtCups,
-        yoghurtFlavours: getFlavourRemaining().filter(entry => entry.remaining !== "")
-    }));
+    const { error } = await supabaseClient.from("closing_details").upsert({
+        shop_id: user.shop_id,
+        entry_date: dayIso(),
+        mpesa_amount: Number(document.getElementById("closingMpesa").value || 0),
+        cash_notes: Number(document.getElementById("closingNotes").value || 0),
+        cash_coins: Number(document.getElementById("closingCoins").value || 0),
+        yoghurt_cups: yoghurtCups,
+        yoghurt_flavours: getFlavourRemaining().filter(entry => entry.remaining !== "")
+    }, { onConflict: "shop_id,entry_date" });
+    if (error) {
+        document.getElementById("closingMessage").textContent = "Unable to save closing details.";
+        return false;
+    }
     updateClosingMoneyTotal();
     document.getElementById("closingMessage").textContent = "Closing details saved.";
+    return true;
 }
 
 async function loadProducts() {
@@ -353,6 +364,8 @@ async function saveEntries() {
         document.getElementById("saveMessage").textContent = "Unable to save entries. Please try again.";
         return;
     }
-    saveClosingDetails();
-    document.getElementById("saveMessage").textContent = "Saved successfully. Closing details saved too.";
+    const closingSaved = await saveClosingDetails();
+    document.getElementById("saveMessage").textContent = closingSaved
+        ? "Saved successfully. Closing details sent to the owner."
+        : "Sales saved, but closing details could not be sent.";
 }

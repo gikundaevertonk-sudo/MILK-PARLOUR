@@ -52,10 +52,10 @@ async function loadNotifications() {
         }
     }
     const { data: entries } = await supabaseClient
-        .from("daily_stock_entries")
+        .from("closing_details")
         .select("shops(name)")
         .eq("entry_date", today)
-        .not("quantity_out", "is", null);
+        .not("submitted_at", "is", null);
     if (entries) {
         new Set(entries.map(entry => entry.shops.name)).forEach(shopName => {
             showNotification(`Closing balance received from ${shopName}.`);
@@ -234,18 +234,29 @@ function closingDetailsKey() {
 
 let closingMoneyValues = { mpesa: 0, notes: 0, coins: 0 };
 
-function loadClosingDetails() {
-    const details = JSON.parse(localStorage.getItem(closingDetailsKey()) || "{}");
+async function loadClosingDetails() {
+    const { data, error } = await supabaseClient
+        .from("closing_details")
+        .select("mpesa_amount, cash_notes, cash_coins, yoghurt_cups, yoghurt_flavours")
+        .eq("shop_id", document.getElementById("closingShop").value)
+        .eq("entry_date", document.getElementById("closingDate").value)
+        .maybeSingle();
+    if (error) {
+        document.getElementById("closingMessage").textContent = "Unable to load submitted closing details.";
+        return;
+    }
+
+    const details = data || {};
     closingMoneyValues = {
-        mpesa: Number(details.mpesa || 0),
-        notes: Number(details.notes || 0),
-        coins: Number(details.coins || 0)
+        mpesa: Number(details.mpesa_amount || 0),
+        notes: Number(details.cash_notes || 0),
+        coins: Number(details.cash_coins || 0)
     };
     document.getElementById("closingMpesa").textContent = closingMoneyValues.mpesa.toFixed(2);
     document.getElementById("closingNotes").textContent = closingMoneyValues.notes.toFixed(2);
     document.getElementById("closingCoins").textContent = closingMoneyValues.coins.toFixed(2);
-    renderYoghurtCupSizes(details.yoghurtCups || []);
-    renderFlavourRemaining(details.yoghurtFlavours || []);
+    renderYoghurtCupSizes(details.yoghurt_cups || []);
+    renderFlavourRemaining(details.yoghurt_flavours || []);
     updateClosingMoneyTotal();
 }
 
