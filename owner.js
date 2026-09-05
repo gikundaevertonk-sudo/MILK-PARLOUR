@@ -4,6 +4,13 @@ let closingSalesTotal = 0;
 const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry", "Pineapple", "Chocolate"];
 const TWIN_PIECES_PER_PACK = 2;
 const SIMBA_PIECES_PER_PACK = 18;
+const yoghurtCupPresets = [
+    { size: "200 ml", price: 50 },
+    { size: "250 ml", price: 60 },
+    { size: "300 ml", price: 70 },
+    { size: "500 ml", price: 100 },
+    { size: "1000 ml", price: 190 }
+];
 
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
@@ -292,7 +299,8 @@ async function loadClosingDetails() {
     document.getElementById("closingMpesa").textContent = closingMoneyValues.mpesa.toFixed(2);
     document.getElementById("closingNotes").textContent = closingMoneyValues.notes.toFixed(2);
     document.getElementById("closingCoins").textContent = closingMoneyValues.coins.toFixed(2);
-    renderYoghurtCupSizes(details.yoghurt_cups || []);
+    const closingCups = Array.isArray(details.yoghurt_cups) ? details.yoghurt_cups : details.yoghurt_cups?.closing || [];
+    renderYoghurtCupSizes(closingCups);
     renderFlavourRemaining(details.yoghurt_flavours || []);
     updateClosingMoneyTotal();
 }
@@ -478,6 +486,17 @@ async function loadStockInProducts() {
         container.innerHTML += `<div class="flavour-stock-in">
             <h4>Yoghurt flavours (ml) — carried over from yesterday's closing</h4>
             ${yoghurtFlavours.map(flavour => `<label>${flavour}: <input type="number" min="0" step="0.01" id="flavourIn_${flavour}"><span class="carry-note">Yesterday's remaining: ${previous[flavour] ?? 0} ml</span></label>`).join("")}
+            <h4>Yoghurt cups added this morning</h4>
+            <p class="section-note">1 sealed pack = 25 cups. Prices are fixed per cup size.</p>
+            ${yoghurtCupPresets.map(cup => `<div class="stock-pack-piece-row yoghurt-stock-row">
+                <strong>${cup.size} — ${cup.price} per cup</strong>
+                <label>Sealed packs:
+                    <input type="number" min="0" step="1" id="cupInPack_${cup.size.replace(/\D/g, "")}">
+                </label>
+                <label>Loose cups:
+                    <input type="number" min="0" max="24" step="1" id="cupInLoose_${cup.size.replace(/\D/g, "")}">
+                </label>
+            </div>`).join("")}
         </div>`;
     }
 }
@@ -538,6 +557,31 @@ async function saveStockIn() {
         const details = JSON.parse(localStorage.getItem(key) || "{}");
         details.yoghurtFlavoursAdded = flavourAdds;
         localStorage.setItem(key, JSON.stringify(details));
+    }
+
+    const yoghurtCupStockIn = yoghurtCupPresets.map(cup => {
+        const sizeKey = cup.size.replace(/\D/g, "");
+        return {
+            size: cup.size,
+            price: cup.price,
+            sealed: document.getElementById(`cupInPack_${sizeKey}`)?.value ?? "",
+            unsealed: document.getElementById(`cupInLoose_${sizeKey}`)?.value ?? ""
+        };
+    }).filter(cup => cup.sealed !== "" || cup.unsealed !== "");
+    if (yoghurtCupStockIn.length) {
+        const { data: existing } = await supabaseClient
+            .from("closing_details")
+            .select("yoghurt_cups, yoghurt_flavours")
+            .eq("shop_id", shopId)
+            .eq("entry_date", today)
+            .maybeSingle();
+        const existingCups = Array.isArray(existing?.yoghurt_cups) ? { closing: existing.yoghurt_cups } : (existing?.yoghurt_cups || {});
+        await supabaseClient.from("closing_details").upsert({
+            shop_id: shopId,
+            entry_date: today,
+            yoghurt_cups: { stockIn: yoghurtCupStockIn, closing: existingCups.closing || [] },
+            yoghurt_flavours: existing?.yoghurt_flavours || []
+        }, { onConflict: "shop_id,entry_date" });
     }
 
     document.getElementById("stockInMessage").textContent = "Saved successfully.";

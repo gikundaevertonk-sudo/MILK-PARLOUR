@@ -85,7 +85,8 @@ async function loadClosingDetails() {
             input.value = details.yoghurt_flavours.find(entry => entry.flavour === flavour)?.remaining ?? "";
         }
     });
-    renderYoghurtCupSizes(details.yoghurt_cups || []);
+    const closingCups = Array.isArray(details.yoghurt_cups) ? details.yoghurt_cups : details.yoghurt_cups?.closing || [];
+    renderYoghurtCupSizes(closingCups);
     updateClosingMoneyTotal();
 }
 
@@ -139,13 +140,20 @@ function updateClosingMoneyTotal() {
 
 async function saveClosingDetails() {
     const yoghurtCups = getYoghurtCupRows().filter(cup => cup.sealed !== "" || cup.unsealed !== "");
+    const { data: existing } = await supabaseClient
+        .from("closing_details")
+        .select("yoghurt_cups")
+        .eq("shop_id", user.shop_id)
+        .eq("entry_date", dayIso())
+        .maybeSingle();
+    const existingCups = Array.isArray(existing?.yoghurt_cups) ? {} : (existing?.yoghurt_cups || {});
     const { error } = await supabaseClient.from("closing_details").upsert({
         shop_id: user.shop_id,
         entry_date: dayIso(),
         mpesa_amount: Number(document.getElementById("closingMpesa").value || 0),
         cash_notes: Number(document.getElementById("closingNotes").value || 0),
         cash_coins: Number(document.getElementById("closingCoins").value || 0),
-        yoghurt_cups: yoghurtCups,
+        yoghurt_cups: { stockIn: existingCups.stockIn || [], closing: yoghurtCups },
         yoghurt_flavours: getFlavourRemaining().filter(entry => entry.remaining !== "")
     }, { onConflict: "shop_id,entry_date" });
     if (error) {

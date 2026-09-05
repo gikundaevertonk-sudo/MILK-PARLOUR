@@ -207,6 +207,8 @@ td input, td select { width: 100%; min-width: 100px; }
 .yoghurt-cup-row label { margin: 0; font-weight: 400; }
 .flavour-stock-in { grid-column: 1 / -1; margin-top: 8px; padding: 12px; border: 1px dashed var(--line); }
 .flavour-stock-in h4 { margin: 0 0 8px; }
+.yoghurt-stock-row { margin: 8px 0; padding: 8px; border: 1px solid var(--line); background: #fff; }
+.yoghurt-stock-row strong { grid-column: 1 / -1; }
 .carry-note { display: block; color: var(--ink-muted); font-size: 13px; font-weight: 400; }
 
 #productsSection > input { margin: 8px 6px 0 0; }
