@@ -245,7 +245,7 @@ async function loadClosingBalances() {
         const priceLabel = yoghurt
             ? "per cup size"
             : packSize
-                ? `${Number(product.unit_price ?? 0).toFixed(2)} / pack, ${productName.includes("twin") ? 30 : (Number(product.unit_price ?? 0) / packSize).toFixed(2)} / piece (${packSize} per pack)`
+                ? `${productName.includes("simba") ? Number(product.unit_price ?? 0).toFixed(2) : productName.includes("twin") ? "30.00" : (Number(product.unit_price ?? 0) / packSize).toFixed(2)} / piece (${packSize} per pack)`
             : product.unit_price == null
                 ? "not set"
                 : liquid

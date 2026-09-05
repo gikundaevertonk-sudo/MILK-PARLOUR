@@ -46,6 +46,14 @@ function packPieceCount(product) {
     return 0;
 }
 
+function piecePrice(product, packSize) {
+    return product.name.toLowerCase().includes("simba")
+        ? Number(product.unit_price ?? 0)
+        : product.name.toLowerCase().includes("twin")
+            ? 30
+            : Number(product.unit_price ?? 0) / packSize;
+}
+
 function isPackPieceProduct(product) {
     return packPieceCount(product) > 0;
 }
@@ -209,7 +217,7 @@ async function loadProducts() {
         const priceNote = egg
             ? `1 tray = ${EGGS_PER_TRAY} pieces • Price per piece: ${eggPiecePrice(p).toFixed(2)}`
             : packPieces
-                ? `1 pack = ${packPieces} pieces • Price per pack: ${Number(p.unit_price ?? 0).toFixed(2)} • Price per piece: ${(p.name.toLowerCase().includes("twin") ? 30 : Number(p.unit_price ?? 0) / packPieces).toFixed(2)}`
+                ? `1 pack = ${packPieces} pieces • Price per piece: ${piecePrice(p, packPieces).toFixed(2)} • Pack value: ${(piecePrice(p, packPieces) * packPieces).toFixed(2)}`
             : liquid
                 ? (isYoghurt(p) ? "Yoghurt cash is counted from cup sales below." : `Price per 1000 ml: ${p.unit_price ?? "not set"}`)
                 : `Price per ${p.unit_label}: ${p.unit_price ?? "not set"}`;
@@ -268,7 +276,7 @@ function computeProductResult(product) {
         const remaining = (packs * packPieces) + loose;
         const sold = opening - remaining;
         if (!Number.isFinite(packs) || !Number.isFinite(loose) || packs < 0 || loose < 0 || sold < 0) return { error: true, opening };
-        const pricePerPiece = product.name.toLowerCase().includes("twin") ? 30 : Number(product.unit_price ?? 0) / packPieces;
+        const pricePerPiece = piecePrice(product, packPieces);
         return { sold, remaining, cash: sold * pricePerPiece, liquid: false, pieces: true };
     }
 
