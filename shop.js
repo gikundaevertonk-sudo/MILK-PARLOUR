@@ -172,9 +172,7 @@ async function loadProducts() {
         const inputHtml = egg
             ? `<label>Remaining (Trays): <input type="number" min="0" step="1" data-product="${p.product_id}" id="eggTrays_${p.product_id}"></label>
                <label>Loose pieces left: <input type="number" min="0" max="${EGGS_PER_TRAY - 1}" step="1" data-product="${p.product_id}" id="eggLoose_${p.product_id}"></label>`
-            : liquid
-                ? `<label>Remaining (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="remaining_${p.product_id}"></label>`
-                : `<label>Sold (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="sold_${p.product_id}"></label>`;
+            : `<label>Remaining (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="remaining_${p.product_id}"></label>`;
         const openingNote = egg
             ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} trays added this morning)` : ""}`
             : `Opening stock: ${trimNumber(opening)} ${p.unit_label}${added ? ` (includes ${trimNumber(added)} added this morning)` : ""}`;
@@ -227,24 +225,16 @@ function computeProductResult(product) {
     }
 
     const liquid = isLiquid(product);
-    const input = document.getElementById(liquid ? `remaining_${product.product_id}` : `sold_${product.product_id}`);
+    const input = document.getElementById(`remaining_${product.product_id}`);
     const raw = input ? input.value : "";
     if (raw === "") return null;
 
     const value = Number(raw);
     if (!Number.isFinite(value) || value < 0) return { error: true, opening };
 
-    let sold;
-    let remaining;
-    if (liquid) {
-        remaining = value;
-        sold = opening - remaining;
-        if (sold < 0) return { error: true, opening };
-    } else {
-        sold = value;
-        remaining = opening - sold;
-        if (remaining < 0) return { error: true, opening };
-    }
+    const remaining = value;
+    const sold = opening - remaining;
+    if (sold < 0) return { error: true, opening };
 
     const price = Number(product.unit_price ?? 0);
     const cash = isYoghurt(product) ? 0 : liquid ? (sold / 1000) * price : sold * price;
