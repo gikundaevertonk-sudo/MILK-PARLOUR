@@ -2,6 +2,76 @@ const user = requireRole("Controller");
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
     loadSubscription();
+    loadShopsForClearing();
+}
+
+async function loadShopsForClearing() {
+    const select = document.getElementById("clearShop");
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("clearStartDate").value = today;
+    document.getElementById("clearEndDate").value = today;
+    const { data, error } = await supabaseClient.from("shops").select("shop_id, name").order("name");
+    if (error || !data) {
+        select.innerHTML = "<option value=\"\">Unable to load shops</option>";
+        return;
+    }
+
+    select.innerHTML = data.map(shop => `<option value="${shop.shop_id}">${shop.name}</option>`).join("");
+}
+
+async function clearClosingBalances() {
+    const shopId = document.getElementById("clearShop").value;
+    const startDate = document.getElementById("clearStartDate").value;
+    const endDate = document.getElementById("clearEndDate").value;
+    const message = document.getElementById("clearMessage");
+
+    if (!shopId || !startDate || !endDate) {
+        message.textContent = "Select a shop, start date, and end date.";
+        return;
+    }
+    if (startDate > endDate) {
+        message.textContent = "Start date cannot be after end date.";
+        return;
+    }
+    if (!confirm(`Clear all closing balances for this shop from ${startDate} to ${endDate}?`)) return;
+
+    const { data: closingRows, error: closingLookupError } = await supabaseClient
+        .from("closing_details")
+        .select("closing_detail_id")
+        .eq("shop_id", shopId)
+        .gte("entry_date", startDate)
+        .lte("entry_date", endDate);
+    const { data: entryRows, error: entryLookupError } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("entry_id")
+        .eq("shop_id", shopId)
+        .gte("entry_date", startDate)
+        .lte("entry_date", endDate);
+
+    if (closingLookupError || entryLookupError) {
+        message.textContent = "Unable to find balances for that period.";
+        return;
+    }
+
+    const { error: closingDeleteError } = await supabaseClient
+        .from("closing_details")
+        .delete()
+        .eq("shop_id", shopId)
+        .gte("entry_date", startDate)
+        .lte("entry_date", endDate);
+    const { error: entryDeleteError } = await supabaseClient
+        .from("daily_stock_entries")
+        .delete()
+        .eq("shop_id", shopId)
+        .gte("entry_date", startDate)
+        .lte("entry_date", endDate);
+
+    if (closingDeleteError || entryDeleteError) {
+        message.textContent = "Some balances could not be cleared.";
+        return;
+    }
+
+    message.textContent = `Cleared ${closingRows.length} closing record(s) and ${entryRows.length} stock entr${entryRows.length === 1 ? "y" : "ies"}.`;
 }
 
 async function loadSubscription() {

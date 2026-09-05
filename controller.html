@@ -28,6 +28,24 @@
             <button class="dashboard-btn" onclick="updateSubscription()">Update</button>
             <p id="subMessage"></p>
         </div>
+
+        <div class="dashboard-panel">
+            <h2>Clear Closing Balances</h2>
+            <p class="section-note">Remove submitted closing data for one shop and an inclusive date range.</p>
+            <label for="clearShop">Shop:
+                <select id="clearShop"></select>
+            </label>
+            <div class="filter-controls">
+                <label for="clearStartDate">Start date:
+                    <input type="date" id="clearStartDate">
+                </label>
+                <label for="clearEndDate">End date:
+                    <input type="date" id="clearEndDate">
+                </label>
+            </div>
+            <button type="button" onclick="clearClosingBalances()">Clear Selected Balances</button>
+            <p id="clearMessage"></p>
+        </div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

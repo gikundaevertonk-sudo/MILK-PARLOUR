@@ -204,7 +204,14 @@ async function loadClosingBalances() {
         tbody.innerHTML = "<tr><td colspan='7'>No products are assigned to this shop.</td></tr>";
     }
 
-    assignmentResult.data.forEach(assignment => {
+    const sortedAssignments = [...assignmentResult.data].sort((first, second) => {
+        const firstCategory = first.products.category || "Products";
+        const secondCategory = second.products.category || "Products";
+        return firstCategory.localeCompare(secondCategory) || first.products.name.localeCompare(second.products.name);
+    });
+
+    let currentCategory = "";
+    sortedAssignments.forEach(assignment => {
         const product = assignment.products;
         const entry = entriesByProduct.get(assignment.product_id);
         const added = Number(entry?.quantity_in ?? 0);
@@ -223,6 +230,11 @@ async function loadClosingBalances() {
                 : liquid
                     ? `${product.unit_price} / 1000 ml`
                     : `${product.unit_price} / ${product.unit_label}`;
+        const category = product.category || "Products";
+        if (category !== currentCategory) {
+            currentCategory = category;
+            tbody.innerHTML += `<tr class="category-row"><th colspan="7">${category}</th></tr>`;
+        }
         tbody.innerHTML += `<tr><td>${product.name}</td><td>${opening} ${product.unit_label}</td><td>${added}</td><td>${sold}</td><td>${remaining}</td><td>${priceLabel}</td><td>${entry?.sales_amount ?? ""}</td></tr>`;
     });
     loadClosingDetails();
@@ -408,11 +420,20 @@ async function loadStockInProducts() {
         .order("name");
 
     const container = document.getElementById("stockInProducts");
-    container.innerHTML = data.filter(product => (product.category || "").toLowerCase() !== "yoghurt").map(p => `
-        <div>
-            <label>${p.name} (${p.unit_label}):
-                <input type="number" step="0.01" id="qtyIn_${p.product_id}">
-            </label>
+    const stockProducts = data.filter(product => (product.category || "").toLowerCase() !== "yoghurt");
+    const groupedProducts = stockProducts.reduce((groups, product) => {
+        const category = product.category || "Products";
+        (groups[category] ||= []).push(product);
+        return groups;
+    }, {});
+    container.innerHTML = Object.keys(groupedProducts).sort().map(category => `
+        <div class="stock-category">
+            <h3 class="category-heading">${category}</h3>
+            ${groupedProducts[category].sort((first, second) => first.name.localeCompare(second.name)).map(p => `
+                <label>${p.name} (${p.unit_label}):
+                    <input type="number" step="0.01" id="qtyIn_${p.product_id}">
+                </label>
+            `).join("")}
         </div>
     `).join("");
 

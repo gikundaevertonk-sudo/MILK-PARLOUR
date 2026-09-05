@@ -179,6 +179,7 @@ td input, td select { width: 100%; min-width: 100px; }
 .editable-row td:not(.edit-actions) { cursor: text; }
 .editable-row.is-editing { background: #fff8e8; }
 .editable-row.is-saving { opacity: 0.65; }
+.category-row th { padding: 8px 12px; color: var(--ink); background: #e7f0e9; text-transform: uppercase; letter-spacing: 0.04em; }
 
 .product-row { padding: 18px; margin-bottom: 12px; }
 .product-row h3 { margin: 0 0 8px; }
@@ -211,6 +212,8 @@ td input, td select { width: 100%; min-width: 100px; }
 #productsSection > input { margin: 8px 6px 0 0; }
 #stockInProducts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 16px; }
 #stockInProducts label { width: 100%; }
+#stockInProducts .stock-category { padding: 4px 12px 12px; border: 1px solid var(--line); border-radius: 6px; background: #f7faf7; }
+#stockInProducts .stock-category .category-heading { margin-top: 8px; }
 #stockInProducts input { width: 100%; }
 #stockInMessage, #productMessage, #saveMessage, #subMessage { color: var(--success); font-weight: 700; }
 #closingMessage, #expenseMessage { color: var(--ink-muted); font-weight: 700; }
