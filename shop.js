@@ -191,7 +191,7 @@ async function loadProducts() {
         const carried = Number(previousEntries.find(entry => entry.product_id === p.product_id)?.secondary_quantity_out ?? 0);
         const egg = isEgg(p);
         const packPieces = packPieceCount(p);
-        const opening = egg ? carried + (added * EGGS_PER_TRAY) : packPieces ? carried + (added * packPieces) : carried + added;
+        const opening = egg ? carried + (added * EGGS_PER_TRAY) : carried + added;
         productOpenings.set(p.product_id, opening);
         const liquid = isLiquid(p);
         const inputHtml = egg
@@ -204,7 +204,7 @@ async function loadProducts() {
         const openingNote = egg
             ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} trays added this morning)` : ""}`
             : packPieces
-                ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} packs added this morning)` : ""}`
+            ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} pieces added this morning)` : ""}`
             : `Opening stock: ${trimNumber(opening)} ${p.unit_label}${added ? ` (includes ${trimNumber(added)} added this morning)` : ""}`;
         const priceNote = egg
             ? `1 tray = ${EGGS_PER_TRAY} pieces • Price per piece: ${eggPiecePrice(p).toFixed(2)}`
