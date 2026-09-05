@@ -2,6 +2,8 @@ const user = requireRole("Owner");
 let closingSalesTotal = 0;
 
 const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry", "Pineapple", "Chocolate"];
+const TWIN_PIECES_PER_PACK = 2;
+const SIMBA_PIECES_PER_PACK = 18;
 
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
@@ -24,6 +26,13 @@ function showNotification(message) {
     list.prepend(item);
     notificationCount += 1;
     updateNotificationBadge();
+}
+
+function packPieceCount(product) {
+    const name = (product.name || "").toLowerCase();
+    if (name.includes("twin")) return TWIN_PIECES_PER_PACK;
+    if (name.includes("simba") && (name.includes("ice cream") || name.includes("stick"))) return SIMBA_PIECES_PER_PACK;
+    return 0;
 }
 
 let notificationCount = 0;
@@ -433,11 +442,22 @@ async function loadStockInProducts() {
     container.innerHTML = Object.keys(groupedProducts).sort().map(category => `
         <div class="stock-category">
             <h3 class="category-heading">${category}</h3>
-            ${groupedProducts[category].sort((first, second) => first.name.localeCompare(second.name)).map(p => `
-                <label>${p.name} (${p.unit_label}):
-                    <input type="number" step="0.01" id="qtyIn_${p.product_id}">
-                </label>
-            `).join("")}
+            ${groupedProducts[category].sort((first, second) => first.name.localeCompare(second.name)).map(p => {
+                const packSize = packPieceCount(p);
+                return packSize
+                    ? `<div class="stock-pack-piece-row">
+                        <strong>${p.name}</strong>
+                        <label>Full packs (${packSize} pieces):
+                            <input type="number" min="0" step="1" id="qtyInPack_${p.product_id}">
+                        </label>
+                        <label>Individual pieces:
+                            <input type="number" min="0" max="${packSize - 1}" step="1" id="qtyInLoose_${p.product_id}">
+                        </label>
+                    </div>`
+                    : `<label>${p.name} (${p.unit_label}):
+                        <input type="number" step="0.01" id="qtyIn_${p.product_id}">
+                    </label>`;
+            }).join("")}
         </div>
     `).join("");
 
@@ -468,14 +488,24 @@ async function saveStockIn() {
 
     const { data: products } = await supabaseClient
         .from("products")
-        .select("product_id")
+        .select("product_id, name")
         .eq("is_active", true)
         .eq("track_quantity_in", true);
 
     for (const p of products) {
+        const packSize = packPieceCount(p);
         const input = document.getElementById(`qtyIn_${p.product_id}`);
-        const value = input.value;
-        if (value === "") continue;
+        const packInput = document.getElementById(`qtyInPack_${p.product_id}`);
+        const looseInput = document.getElementById(`qtyInLoose_${p.product_id}`);
+        const value = input?.value ?? "";
+        const packValue = packInput?.value ?? "";
+        const looseValue = looseInput?.value ?? "";
+        if (packSize && packValue === "" && looseValue === "") continue;
+        if (!packSize && value === "") continue;
+
+        const quantityIn = packSize
+            ? (Number(packValue || 0) * packSize) + Number(looseValue || 0)
+            : parseFloat(value);
 
         await supabaseClient
             .from("daily_stock_entries")
@@ -483,7 +513,7 @@ async function saveStockIn() {
                 shop_id: shopId,
                 product_id: p.product_id,
                 entry_date: today,
-                quantity_in: parseFloat(value),
+                quantity_in: quantityIn,
                 quantity_in_by_user_id: user.user_id
             }, { onConflict: "shop_id,product_id,entry_date" });
     }
