@@ -209,7 +209,7 @@ async function loadProducts() {
         const priceNote = egg
             ? `1 tray = ${EGGS_PER_TRAY} pieces • Price per piece: ${eggPiecePrice(p).toFixed(2)}`
             : packPieces
-                ? `1 pack = ${packPieces} pieces • Price per piece: ${(p.name.toLowerCase().includes("twin") ? 30 : Number(p.unit_price ?? 0) / packPieces).toFixed(2)}`
+                ? `1 pack = ${packPieces} pieces • Price per pack: ${Number(p.unit_price ?? 0).toFixed(2)} • Price per piece: ${(p.name.toLowerCase().includes("twin") ? 30 : Number(p.unit_price ?? 0) / packPieces).toFixed(2)}`
             : liquid
                 ? (isYoghurt(p) ? "Yoghurt cash is counted from cup sales below." : `Price per 1000 ml: ${p.unit_price ?? "not set"}`)
                 : `Price per ${p.unit_label}: ${p.unit_price ?? "not set"}`;
