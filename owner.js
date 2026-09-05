@@ -223,8 +223,12 @@ async function loadClosingBalances() {
         closingSalesTotal += salesValue;
         const liquid = (product.unit_label || "").toLowerCase() === "ml";
         const yoghurt = (product.category || "").toLowerCase() === "yoghurt";
+        const productName = (product.name || "").toLowerCase();
+        const packSize = productName.includes("twin") ? 2 : productName.includes("simba") && (productName.includes("ice cream") || productName.includes("stick")) ? 18 : 0;
         const priceLabel = yoghurt
             ? "per cup size"
+            : packSize
+                ? `${productName.includes("twin") ? 30 : (Number(product.unit_price ?? 0) / packSize).toFixed(2)} / piece (${packSize} per pack)`
             : product.unit_price == null
                 ? "not set"
                 : liquid

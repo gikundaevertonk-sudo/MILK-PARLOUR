@@ -11,6 +11,8 @@ const yoghurtCupPresets = [
 ];
 
 const EGGS_PER_TRAY = 30;
+const TWIN_PIECES_PER_PACK = 2;
+const SIMBA_PIECES_PER_PACK = 18;
 const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry", "Pineapple", "Chocolate"];
 const flavourInputs = new Map();
 
@@ -35,6 +37,17 @@ function isYoghurt(product) {
 
 function isEgg(product) {
     return (product.category || "").toLowerCase() === "eggs" || (product.name || "").toLowerCase() === "eggs";
+}
+
+function packPieceCount(product) {
+    const name = (product.name || "").toLowerCase();
+    if (name.includes("twin")) return TWIN_PIECES_PER_PACK;
+    if (name.includes("simba") && (name.includes("ice cream") || name.includes("stick"))) return SIMBA_PIECES_PER_PACK;
+    return 0;
+}
+
+function isPackPieceProduct(product) {
+    return packPieceCount(product) > 0;
 }
 
 function eggPiecePrice(product) {
@@ -177,18 +190,26 @@ async function loadProducts() {
         const added = Number(todayEntries.find(entry => entry.product_id === p.product_id)?.quantity_in ?? 0);
         const carried = Number(previousEntries.find(entry => entry.product_id === p.product_id)?.secondary_quantity_out ?? 0);
         const egg = isEgg(p);
-        const opening = egg ? carried + (added * EGGS_PER_TRAY) : carried + added;
+        const packPieces = packPieceCount(p);
+        const opening = egg ? carried + (added * EGGS_PER_TRAY) : packPieces ? carried + (added * packPieces) : carried + added;
         productOpenings.set(p.product_id, opening);
         const liquid = isLiquid(p);
         const inputHtml = egg
             ? `<label>Remaining (Trays): <input type="number" min="0" step="1" data-product="${p.product_id}" id="eggTrays_${p.product_id}"></label>
                <label>Loose pieces left: <input type="number" min="0" max="${EGGS_PER_TRAY - 1}" step="1" data-product="${p.product_id}" id="eggLoose_${p.product_id}"></label>`
+            : packPieces
+                ? `<label>Remaining packs: <input type="number" min="0" step="1" data-product="${p.product_id}" id="pack_${p.product_id}"></label>
+                   <label>Remaining individual pieces: <input type="number" min="0" max="${packPieces - 1}" step="1" data-product="${p.product_id}" id="loose_${p.product_id}"></label>`
             : `<label>Remaining (${p.unit_label}): <input type="number" min="0" step="0.01" data-product="${p.product_id}" id="remaining_${p.product_id}"></label>`;
         const openingNote = egg
             ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} trays added this morning)` : ""}`
+            : packPieces
+                ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} packs added this morning)` : ""}`
             : `Opening stock: ${trimNumber(opening)} ${p.unit_label}${added ? ` (includes ${trimNumber(added)} added this morning)` : ""}`;
         const priceNote = egg
             ? `1 tray = ${EGGS_PER_TRAY} pieces • Price per piece: ${eggPiecePrice(p).toFixed(2)}`
+            : packPieces
+                ? `1 pack = ${packPieces} pieces • Price per piece: ${(p.name.toLowerCase().includes("twin") ? 30 : Number(p.unit_price ?? 0) / packPieces).toFixed(2)}`
             : liquid
                 ? (isYoghurt(p) ? "Yoghurt cash is counted from cup sales below." : `Price per 1000 ml: ${p.unit_price ?? "not set"}`)
                 : `Price per ${p.unit_label}: ${p.unit_price ?? "not set"}`;
@@ -233,6 +254,22 @@ function computeProductResult(product) {
         const sold = opening - remaining;
         if (sold < 0) return { error: true, opening };
         return { sold, remaining, cash: sold * eggPiecePrice(product), liquid: false, pieces: true };
+    }
+
+    const packPieces = packPieceCount(product);
+    if (packPieces) {
+        const packsInput = document.getElementById(`pack_${product.product_id}`);
+        const looseInput = document.getElementById(`loose_${product.product_id}`);
+        const packsRaw = packsInput ? packsInput.value : "";
+        const looseRaw = looseInput ? looseInput.value : "";
+        if (packsRaw === "" && looseRaw === "") return null;
+        const packs = Number(packsRaw || 0);
+        const loose = Number(looseRaw || 0);
+        const remaining = (packs * packPieces) + loose;
+        const sold = opening - remaining;
+        if (!Number.isFinite(packs) || !Number.isFinite(loose) || packs < 0 || loose < 0 || sold < 0) return { error: true, opening };
+        const pricePerPiece = product.name.toLowerCase().includes("twin") ? 30 : Number(product.unit_price ?? 0) / packPieces;
+        return { sold, remaining, cash: sold * pricePerPiece, liquid: false, pieces: true };
     }
 
     const liquid = isLiquid(product);
