@@ -245,21 +245,21 @@ td input, td select { width: 100%; min-width: 100px; }
 }
 
 @media (max-width: 760px) {
-    nav { padding: 12px 16px; }
+    nav { min-height: 60px; padding: 10px 16px; }
     .owner-shell { display: block; }
     .sidebar { display: none; }
     .mobile-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; margin: -20px -16px 20px; padding: 14px 16px; background: var(--ink); }
-    .mobile-header .brand { min-width: 0; font-size: 18px; white-space: nowrap; }
+    .mobile-header .brand { min-width: 0; font-size: 17px; white-space: nowrap; }
     .mobile-header .logout-button { min-height: 44px; margin: 0; padding: 7px 10px; font-size: 14px; white-space: nowrap; }
     .mobile-dashboard-nav { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 6px; padding: 14px 0 0; }
     .mobile-dashboard-nav .dashboard-btn { min-height: 44px; padding: 9px 8px; border: 1px solid rgba(255, 255, 255, 0.28); color: #d9e8e1; text-align: center; }
     .mobile-dashboard-nav .dashboard-btn:first-child { grid-column: 1 / -1; }
     .mobile-dashboard-nav .dashboard-btn.is-active { color: var(--ink); border-color: #f5c75e; background: #f5c75e; }
-    .dashboard-content { padding: 20px 16px; }
-    .dashboard-section { padding: 20px 16px; overflow: hidden; }
-    .dashboard-grid { margin: 20px auto; padding: 0 16px; }
-    .dashboard-panel { padding: 20px; }
-    h1 { margin: 20px auto 16px; padding: 0 16px; font-size: 24px; }
+    .dashboard-content { padding: 16px 12px 28px; }
+    .dashboard-section { padding: 18px 14px; overflow: hidden; }
+    .dashboard-grid { gap: 14px; margin: 16px auto; padding: 0 12px; }
+    .dashboard-panel { padding: 18px 14px; }
+    h1 { margin: 18px auto 14px; padding: 0 12px; font-size: 24px; }
     h2 { font-size: 21px; }
     .login-box { margin: 48px auto; padding: 28px 22px; }
     input, select, button:not(.dashboard-btn):not(.logout-button) { min-height: 44px; }
@@ -269,10 +269,18 @@ td input, td select { width: 100%; min-width: 100px; }
     #productsSection > input, #reportsSection input, #stockInSection select, #todaySection select, .filter-controls input, .filter-controls select, .expense-form input { width: 100%; margin-right: 0; }
     .filter-controls { display: grid; grid-template-columns: 1fr; }
     .expense-form, .business-summary { grid-template-columns: 1fr; }
-    .closing-entry-grid, .yoghurt-cup-row { grid-template-columns: 1fr; }
+    .closing-entry-grid { grid-template-columns: 1fr; gap: 8px; margin-top: 18px; }
+    .closing-money-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .yoghurt-cup-row { grid-template-columns: minmax(72px, 0.7fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 4px; background: #f7faf7; }
+    .yoghurt-cup-row .cup-size-label { align-self: center; }
+    .yoghurt-cup-row label { margin: 0; font-size: 13px; }
+    .yoghurt-cup-row input { width: 100%; }
+    .product-row { padding: 14px; margin-bottom: 10px; }
+    .category-heading { margin: 22px 0 10px; }
     .closing-money-view { grid-template-columns: 1fr; }
     .yoghurt-cup-row output { padding: 0; }
     .password-field .password-toggle { min-height: 44px; }
+    .notification-popover { top: 66px; left: 12px; }
 }
 
 @media (max-width: 380px) {
