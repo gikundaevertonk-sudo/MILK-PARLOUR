@@ -1,7 +1,7 @@
 const user = requireRole("Owner");
 let closingSalesTotal = 0;
 
-const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry"];
+const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry", "Pineapple", "Chocolate"];
 
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;

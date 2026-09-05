@@ -11,7 +11,7 @@ const yoghurtCupPresets = [
 ];
 
 const EGGS_PER_TRAY = 30;
-const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry"];
+const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry", "Pineapple", "Chocolate"];
 const flavourInputs = new Map();
 
 if (user) {
