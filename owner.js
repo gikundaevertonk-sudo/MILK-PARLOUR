@@ -102,7 +102,7 @@ function showSection(sectionId) {
 }
 
 async function loadTodayEntries() {
-    const today = new Date().toISOString().split("T")[0];
+    const today = document.getElementById("todayDate").value;
     const shopId = document.getElementById("todayShop").value;
     let query = supabaseClient
         .from("daily_stock_entries")
@@ -147,11 +147,14 @@ async function loadShopsIntoDropdown() {
     todaySelect.innerHTML = options;
     closingSelect.innerHTML = options;
     productSelect.innerHTML = options;
-    document.getElementById("closingDate").value = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("todayDate").value = today;
+    document.getElementById("closingDate").value = today;
     loadStockInProducts();
     loadClosingBalances();
     stockInSelect.addEventListener("change", loadStockInProducts);
     todaySelect.addEventListener("change", loadTodayEntries);
+    document.getElementById("todayDate").addEventListener("change", loadTodayEntries);
     closingSelect.addEventListener("change", loadClosingBalances);
     productSelect.addEventListener("change", loadShopProductAssignments);
     loadShopProductAssignments();

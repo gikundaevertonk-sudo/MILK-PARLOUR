@@ -74,6 +74,44 @@ async function clearClosingBalances() {
     message.textContent = `Cleared ${closingRows.length} closing record(s) and ${entryRows.length} stock entr${entryRows.length === 1 ? "y" : "ies"}.`;
 }
 
+async function clearStockIn() {
+    const shopId = document.getElementById("clearShop").value;
+    const startDate = document.getElementById("clearStartDate").value;
+    const endDate = document.getElementById("clearEndDate").value;
+    const message = document.getElementById("clearStockInMessage");
+
+    if (!shopId || !startDate || !endDate) {
+        message.textContent = "Select a shop, start date, and end date.";
+        return;
+    }
+    if (startDate > endDate) {
+        message.textContent = "Start date cannot be after end date.";
+        return;
+    }
+    if (!confirm(`Clear stock-in records for this shop from ${startDate} to ${endDate}?`)) return;
+
+    const { data: rows, error: lookupError } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("entry_id")
+        .eq("shop_id", shopId)
+        .gte("entry_date", startDate)
+        .lte("entry_date", endDate)
+        .not("quantity_in", "is", null);
+    if (lookupError) {
+        message.textContent = "Unable to find stock-in records for that period.";
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from("daily_stock_entries")
+        .update({ quantity_in: null, quantity_in_by_user_id: null })
+        .eq("shop_id", shopId)
+        .gte("entry_date", startDate)
+        .lte("entry_date", endDate)
+        .not("quantity_in", "is", null);
+    message.textContent = error ? "Stock-in records could not be cleared." : `Cleared ${rows.length} stock-in record(s).`;
+}
+
 async function loadSubscription() {
     const { data, error } = await supabaseClient.from("subscription").select("*").limit(1).single();
     if (error || !data) {
