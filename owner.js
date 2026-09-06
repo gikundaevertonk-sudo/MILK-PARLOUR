@@ -470,14 +470,14 @@ async function loadStockInProducts() {
                 return packSize
                     ? `<div class="stock-pack-piece-row">
                         <strong>${p.name}</strong>
-                        <label>Full packs (${packSize} pieces):
-                            <input type="number" min="0" step="1" id="qtyInPack_${p.product_id}">
+                        <label>Pack adjustment (${packSize} pieces):
+                            <input type="number" step="1" id="qtyInPack_${p.product_id}">
                         </label>
-                        <label>Individual pieces:
-                            <input type="number" min="0" max="${packSize - 1}" step="1" id="qtyInLoose_${p.product_id}">
+                        <label>Piece adjustment:
+                            <input type="number" step="1" id="qtyInLoose_${p.product_id}">
                         </label>
                     </div>`
-                    : `<label>${p.name} (${p.unit_label}):
+                    : `<label>${p.name} (${p.unit_label}) adjustment:
                         <input type="number" step="0.01" id="qtyIn_${p.product_id}">
                     </label>`;
             }).join("")}
@@ -526,6 +526,19 @@ async function saveStockIn() {
         .eq("is_active", true)
         .eq("track_quantity_in", true);
 
+    const { data: existingEntries, error: existingError } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("product_id, quantity_in")
+        .eq("shop_id", shopId)
+        .eq("entry_date", today);
+    if (existingError) {
+        document.getElementById("stockInMessage").textContent = "Unable to load current stock.";
+        return;
+    }
+
+    const currentByProduct = new Map((existingEntries || []).map(entry => [entry.product_id, Number(entry.quantity_in || 0)]));
+    const adjustments = [];
+
     for (const p of products) {
         const packSize = packPieceCount(p);
         const input = document.getElementById(`qtyIn_${p.product_id}`);
@@ -537,19 +550,44 @@ async function saveStockIn() {
         if (packSize && packValue === "" && looseValue === "") continue;
         if (!packSize && value === "") continue;
 
-        const quantityIn = packSize
+        const adjustment = packSize
             ? (Number(packValue || 0) * packSize) + Number(looseValue || 0)
             : parseFloat(value);
+        if (!Number.isFinite(adjustment)) {
+            document.getElementById("stockInMessage").textContent = `${p.name}: enter a valid adjustment.`;
+            return;
+        }
 
-        await supabaseClient
-            .from("daily_stock_entries")
-            .upsert({
+        const currentStock = currentByProduct.get(p.product_id) || 0;
+        const quantityIn = currentStock + adjustment;
+        if (quantityIn < 0) {
+            document.getElementById("stockInMessage").textContent = `${p.name}: adjustment cannot reduce stock below zero.`;
+            return;
+        }
+        adjustments.push({ product: p, quantityIn, hasExisting: currentByProduct.has(p.product_id) });
+    }
+
+    for (const { product: p, quantityIn, hasExisting } of adjustments) {
+        const result = hasExisting
+            ? await supabaseClient
+                .from("daily_stock_entries")
+                .update({ quantity_in: quantityIn, quantity_in_by_user_id: user.user_id })
+                .eq("shop_id", shopId)
+                .eq("product_id", p.product_id)
+                .eq("entry_date", today)
+            : await supabaseClient
+                .from("daily_stock_entries")
+                .insert({
                 shop_id: shopId,
                 product_id: p.product_id,
                 entry_date: today,
                 quantity_in: quantityIn,
                 quantity_in_by_user_id: user.user_id
-            }, { onConflict: "shop_id,product_id,entry_date" });
+                });
+        if (result.error) {
+            document.getElementById("stockInMessage").textContent = `${p.name}: unable to save adjustment.`;
+            return;
+        }
     }
 
     const flavourAdds = yoghurtFlavours
