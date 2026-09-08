@@ -510,21 +510,25 @@ async function saveEntries() {
         });
     }
 
-    if (entries.length === 0) {
+    const hasMoney = ["closingMpesa", "closingNotes", "closingCoins"].some(id => (document.getElementById(id).value || "") !== "");
+    if (entries.length === 0 && !hasMoney) {
         document.getElementById("saveMessage").textContent = "Enter at least one value before saving.";
         return;
     }
 
-    const { error: saveError } = await supabaseClient
-        .from("daily_stock_entries")
-        .upsert(entries, { onConflict: "shop_id,product_id,entry_date" });
+    if (entries.length > 0) {
+        const { error: saveError } = await supabaseClient
+            .from("daily_stock_entries")
+            .upsert(entries, { onConflict: "shop_id,product_id,entry_date" });
 
-    if (saveError) {
-        document.getElementById("saveMessage").textContent = "Unable to save entries. Please try again.";
-        return;
+        if (saveError) {
+            document.getElementById("saveMessage").textContent = "Unable to save entries. Please try again.";
+            return;
+        }
     }
+
     const closingSaved = await saveClosingDetails();
     document.getElementById("saveMessage").textContent = closingSaved
-        ? "Saved successfully. Closing details sent to the owner."
+        ? "Closing balance saved and sent to the owner."
         : "Sales saved, but closing details could not be sent.";
 }

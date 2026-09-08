@@ -20,11 +20,16 @@
                 <input type="date" id="entryDate">
             </label>
             <div id="productsContainer"></div>
-            <button onclick="saveEntries()">Save</button>
-            <p id="saveMessage"></p>
+
+            <section class="shop-closing-details" aria-labelledby="yoghurtCupsHeading">
+                <h2 id="yoghurtCupsHeading">Yoghurt Cups</h2>
+                <p class="section-note">Enter sealed packs (1 pack = 25 cups) and loose cups left per size.</p>
+                <div id="yoghurtClosingRows"></div>
+                <p class="section-note">Yoghurt cup sales: <strong id="yoghurtSalesTotal">0.00</strong></p>
+            </section>
 
             <section class="shop-closing-details" aria-labelledby="shopClosingHeading">
-                <h2 id="shopClosingHeading">Closing Details</h2>
+                <h2 id="shopClosingHeading">Closing Money</h2>
                 <div class="closing-entry-grid">
                     <label for="closingMpesa">M-Pesa amount:
                         <input type="number" id="closingMpesa" min="0" step="0.01" placeholder="0.00" oninput="updateClosingMoneyTotal()">
@@ -42,13 +47,11 @@
                     <span>Expected sales: <strong id="closingExpectedTotal">0.00</strong></span>
                     <span>Difference: <strong id="closingDifference">0.00</strong></span>
                 </div>
-                <h3>Yoghurt Cups</h3>
-                <p class="section-note">Enter sealed packs (1 pack = 25 cups) and loose cups left per size.</p>
-                <div id="yoghurtClosingRows"></div>
-                <p class="section-note">Yoghurt cup sales: <strong id="yoghurtSalesTotal">0.00</strong></p>
-                <button type="button" onclick="saveClosingDetails()">Save Closing Details</button>
-                <p id="closingMessage"></p>
             </section>
+
+            <button onclick="saveEntries()">Save Closing Balance</button>
+            <p id="saveMessage"></p>
+            <p id="closingMessage"></p>
         </div>
     </main>
 

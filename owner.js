@@ -408,14 +408,11 @@ function renderYoghurtCupSizes(cupSizes, carriedCups = new Map(), morningCups = 
         const opening = (carriedCups.get(preset.size) || 0) + (morningCups.get(preset.size) || 0);
         const left = cupCount(saved);
         const sold = counted ? Math.max(opening - left, 0) : 0;
-        return { ...preset, counted, opening, left, sold, cash: sold * preset.price };
+        return { ...preset, counted, opening, left, sold };
     }).filter(row => row.counted || row.opening > 0);
 
-    const cupSalesTotal = rows.reduce((total, row) => total + row.cash, 0);
-
     container.innerHTML = rows.length
-        ? rows.map(row => `<div class="yoghurt-cup-row read-only"><span class="cup-size-label">${row.size}</span><span>Opening ${row.opening}</span><span>Left ${row.left}</span><strong>Sold ${row.sold}</strong><span>${row.cash.toFixed(2)}</span></div>`).join("")
-            + `<div class="yoghurt-cup-row read-only"><strong>Yoghurt cup sales: ${cupSalesTotal.toFixed(2)}</strong></div>`
+        ? rows.map(row => `<div class="yoghurt-cup-row read-only"><span class="cup-size-label">${row.size}</span><span>Opening ${row.opening}</span><span>Left ${row.left}</span><strong>Sold ${row.sold} cups</strong></div>`).join("")
         : "<p class=\"section-note\">No cup counts submitted.</p>";
 }
 
