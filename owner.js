@@ -282,9 +282,15 @@ async function loadClosingBalances() {
         const entry = entriesByProduct.get(assignment.product_id);
         const added = Number(entry?.quantity_in ?? 0);
         const carried = Number(previousByProduct.get(assignment.product_id) ?? 0);
-        const opening = carried + added;
-        const sold = entry?.quantity_out ?? "";
-        const remaining = entry?.secondary_quantity_out ?? "";
+        const soldRaw = entry?.quantity_out;
+        const remainingRaw = entry?.secondary_quantity_out;
+        const hasClosing = soldRaw != null || remainingRaw != null;
+        // A saved closing defines its own day: opening = what was sold + what was left.
+        // Only fall back to the carry-forward estimate when nothing was entered, so
+        // every entered row reconciles even if that day's stock-in is missing.
+        const opening = hasClosing ? Number(soldRaw ?? 0) + Number(remainingRaw ?? 0) : carried + added;
+        const sold = soldRaw ?? "";
+        const remaining = remainingRaw ?? "";
         const liquid = (product.unit_label || "").toLowerCase() === "ml";
         const yoghurt = (product.category || "").toLowerCase() === "yoghurt";
         // Yoghurt sales are recomputed live from cup counts in loadClosingDetails,
@@ -301,10 +307,14 @@ async function loadClosingBalances() {
                 : liquid
                     ? `${product.unit_price} / 1000 ml`
                     : `${product.unit_price} / ${product.unit_label}`;
-                const openingLabel = packSize ? formatPackPieces(opening, packSize) : `${opening} ${product.unit_label}`;
-                const addedLabel = packSize ? formatPackPieces(added, packSize) : added;
-                const soldLabel = packSize ? formatPackPieces(sold, packSize) : sold;
-                const remainingLabel = packSize ? formatPackPieces(remaining, packSize) : remaining;
+                // Yoghurt is the sum of its flavours, not a stocked item, so its ml
+                // opening/added/sold are not meaningful - show the flavour total only.
+                const openingLabel = yoghurt ? "—" : packSize ? formatPackPieces(opening, packSize) : `${opening} ${product.unit_label}`;
+                const addedLabel = yoghurt ? "—" : packSize ? formatPackPieces(added, packSize) : added;
+                const soldLabel = yoghurt ? "—" : packSize ? formatPackPieces(sold, packSize) : sold;
+                const remainingLabel = yoghurt
+                    ? (remainingRaw != null ? `${Number(remainingRaw)} ml flavours` : "—")
+                    : packSize ? formatPackPieces(remaining, packSize) : remaining;
         const category = product.category || "Products";
         if (category !== currentCategory) {
             currentCategory = category;
