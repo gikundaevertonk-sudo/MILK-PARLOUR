@@ -285,10 +285,11 @@ async function loadClosingBalances() {
         const opening = carried + added;
         const sold = entry?.quantity_out ?? "";
         const remaining = entry?.secondary_quantity_out ?? "";
-        const salesValue = Number(entry?.sales_amount ?? 0);
-        closingSalesTotal += salesValue;
         const liquid = (product.unit_label || "").toLowerCase() === "ml";
         const yoghurt = (product.category || "").toLowerCase() === "yoghurt";
+        // Yoghurt sales are recomputed live from cup counts in loadClosingDetails,
+        // so they are not added here (a stale saved sales_amount would be wrong).
+        if (!yoghurt) closingSalesTotal += Number(entry?.sales_amount ?? 0);
         const productName = (product.name || "").toLowerCase();
         const packSize = productName.includes("twin") ? 2 : productName.includes("simba") && (productName.includes("ice cream") || productName.includes("stick")) ? 18 : 0;
         const priceLabel = yoghurt
@@ -309,7 +310,8 @@ async function loadClosingBalances() {
             currentCategory = category;
             tbody.innerHTML += `<tr class="category-row"><th colspan="7">${category}</th></tr>`;
         }
-        tbody.innerHTML += `<tr><td>${product.name}</td><td>${openingLabel}</td><td>${addedLabel}</td><td>${soldLabel}</td><td>${remainingLabel}</td><td>${priceLabel}</td><td>${entry?.sales_amount ?? ""}</td></tr>`;
+        const salesCell = yoghurt ? `<td id="yoghurtSalesCell">${entry?.sales_amount ?? ""}</td>` : `<td>${entry?.sales_amount ?? ""}</td>`;
+        tbody.innerHTML += `<tr><td>${product.name}</td><td>${openingLabel}</td><td>${addedLabel}</td><td>${soldLabel}</td><td>${remainingLabel}</td><td>${priceLabel}</td>${salesCell}</tr>`;
     });
     loadClosingDetails();
 }
@@ -332,8 +334,16 @@ function cupsBySize(rows) {
     return map;
 }
 
-// Cups carried into the selected day per size = the cups left at the most recent
-// earlier closing that has a saved count.
+const yoghurtCupSizes = [
+    { size: "200 ml", price: 50 },
+    { size: "250 ml", price: 60 },
+    { size: "300 ml", price: 70 },
+    { size: "500 ml", price: 100 },
+    { size: "1000 ml", price: 190 }
+];
+
+// Cups carried into the selected day per size, same rule as stock: cups left at the
+// most recent earlier closing count plus every cup stock-in booked on the days since.
 async function fetchCarriedYoghurtCups(shopId, beforeDateIso) {
     const carried = new Map();
     const { data, error } = await supabaseClient
@@ -342,16 +352,35 @@ async function fetchCarriedYoghurtCups(shopId, beforeDateIso) {
         .eq("shop_id", shopId)
         .lt("entry_date", beforeDateIso)
         .order("entry_date", { ascending: false });
-    if (error || !data) return carried;
+    if (error || !data || data.length === 0) return carried;
 
     const closingOf = row => Array.isArray(row.yoghurt_cups) ? row.yoghurt_cups : (row.yoghurt_cups?.closing || []);
-    const prior = data.find(row => closingOf(row).some(cup => (cup.sealed ?? "") !== "" || (cup.unsealed ?? "") !== ""));
-    if (prior) {
-        closingOf(prior).forEach(cup => {
-            if (cup && cup.size) carried.set(cup.size, cupCount(cup));
-        });
-    }
+    const stockInOf = row => Array.isArray(row.yoghurt_cups) ? [] : (row.yoghurt_cups?.stockIn || []);
+    const hasCount = rows => rows.some(cup => (cup.sealed ?? "") !== "" || (cup.unsealed ?? "") !== "");
+
+    const anchorIndex = data.findIndex(row => hasCount(closingOf(row)));
+    const gapRows = anchorIndex === -1 ? data : data.slice(0, anchorIndex);
+
+    yoghurtCupSizes.forEach(preset => {
+        const base = anchorIndex === -1 ? 0 : cupCount(closingOf(data[anchorIndex]).find(cup => cup.size === preset.size));
+        const added = gapRows.reduce((sum, row) => {
+            const cup = stockInOf(row).find(entry => entry.size === preset.size);
+            return sum + (cup ? cupCount(cup) : 0);
+        }, 0);
+        if (base + added !== 0) carried.set(preset.size, base + added);
+    });
     return carried;
+}
+
+// Yoghurt cup sales for a day = sum over sizes of (opening - cups left) * price.
+function yoghurtCupSalesTotal(closingCups, carriedCups, morningCups) {
+    return yoghurtCupSizes.reduce((total, preset) => {
+        const saved = closingCups.find(cup => cup.size === preset.size);
+        if (!saved || ((saved.sealed ?? "") === "" && (saved.unsealed ?? "") === "")) return total;
+        const opening = (carriedCups.get(preset.size) || 0) + (morningCups.get(preset.size) || 0);
+        const sold = Math.max(opening - cupCount(saved), 0);
+        return total + (sold * preset.price);
+    }, 0);
 }
 
 async function loadClosingDetails() {
@@ -382,6 +411,13 @@ async function loadClosingDetails() {
     const carriedCups = await fetchCarriedYoghurtCups(shopId, entryDate);
     renderYoghurtCupSizes(closingCups, carriedCups, morningCups);
     renderFlavourRemaining(details.yoghurt_flavours || []);
+
+    // Fold yoghurt cup sales into the expected-sales total (loadClosingBalances
+    // deliberately skipped the yoghurt row) and show it on the yoghurt table row.
+    const cupSales = yoghurtCupSalesTotal(closingCups, carriedCups, morningCups);
+    closingSalesTotal += cupSales;
+    const yoghurtSalesCell = document.getElementById("yoghurtSalesCell");
+    if (yoghurtSalesCell && cupSales > 0) yoghurtSalesCell.textContent = cupSales.toFixed(2);
     updateClosingMoneyTotal();
 }
 

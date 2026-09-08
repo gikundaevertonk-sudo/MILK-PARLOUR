@@ -142,8 +142,9 @@ function trimNumber(value) {
     return Number(value.toFixed(2));
 }
 
-// Cups carried into the selected day per size = the cups left at the most recent
-// earlier closing that has a saved count.
+// Cups carried into the selected day per size, same rule as stock: the cups left
+// at the most recent earlier closing count, plus every cup stock-in booked on the
+// days since (so "what was there initially + everything added" is never dropped).
 async function fetchCarriedYoghurtCups(shopId, beforeDateIso) {
     const carried = new Map();
     const { data, error } = await supabaseClient
@@ -152,15 +153,23 @@ async function fetchCarriedYoghurtCups(shopId, beforeDateIso) {
         .eq("shop_id", shopId)
         .lt("entry_date", beforeDateIso)
         .order("entry_date", { ascending: false });
-    if (error || !data) return carried;
+    if (error || !data || data.length === 0) return carried;
 
     const closingOf = row => Array.isArray(row.yoghurt_cups) ? row.yoghurt_cups : (row.yoghurt_cups?.closing || []);
-    const prior = data.find(row => closingOf(row).some(cup => (cup.sealed ?? "") !== "" || (cup.unsealed ?? "") !== ""));
-    if (prior) {
-        closingOf(prior).forEach(cup => {
-            if (cup && cup.size) carried.set(cup.size, cupCount(cup));
-        });
-    }
+    const stockInOf = row => Array.isArray(row.yoghurt_cups) ? [] : (row.yoghurt_cups?.stockIn || []);
+    const hasCount = rows => rows.some(cup => (cup.sealed ?? "") !== "" || (cup.unsealed ?? "") !== "");
+
+    const anchorIndex = data.findIndex(row => hasCount(closingOf(row)));
+    const gapRows = anchorIndex === -1 ? data : data.slice(0, anchorIndex);
+
+    yoghurtCupPresets.forEach(preset => {
+        const base = anchorIndex === -1 ? 0 : cupCount(closingOf(data[anchorIndex]).find(cup => cup.size === preset.size));
+        const added = gapRows.reduce((sum, row) => {
+            const cup = stockInOf(row).find(entry => entry.size === preset.size);
+            return sum + (cup ? cupCount(cup) : 0);
+        }, 0);
+        if (base + added !== 0) carried.set(preset.size, base + added);
+    });
     return carried;
 }
 
