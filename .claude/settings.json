@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s '__TRACKED_VAR__/daily_stock_entries?select=entry_date,shop_id&order=entry_date.desc' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')"
+    ]
+  }
+}

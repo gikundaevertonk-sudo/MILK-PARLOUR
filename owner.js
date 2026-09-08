@@ -4,6 +4,7 @@ let closingSalesTotal = 0;
 const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry", "Pineapple", "Chocolate"];
 const TWIN_PIECES_PER_PACK = 2;
 const SIMBA_PIECES_PER_PACK = 18;
+const CUPS_PER_SEALED_PACK = 25;
 const yoghurtCupPresets = [
     { size: "200 ml", price: 50 },
     { size: "250 ml", price: 60 },
@@ -319,12 +320,48 @@ function closingDetailsKey() {
 
 let closingMoneyValues = { mpesa: 0, notes: 0, coins: 0 };
 
+function cupCount(entry) {
+    return (Number(entry?.sealed || 0) * CUPS_PER_SEALED_PACK) + Number(entry?.unsealed || 0);
+}
+
+function cupsBySize(rows) {
+    const map = new Map();
+    (rows || []).forEach(entry => {
+        if (entry && entry.size) map.set(entry.size, cupCount(entry));
+    });
+    return map;
+}
+
+// Cups carried into the selected day per size = the cups left at the most recent
+// earlier closing that has a saved count.
+async function fetchCarriedYoghurtCups(shopId, beforeDateIso) {
+    const carried = new Map();
+    const { data, error } = await supabaseClient
+        .from("closing_details")
+        .select("entry_date, yoghurt_cups")
+        .eq("shop_id", shopId)
+        .lt("entry_date", beforeDateIso)
+        .order("entry_date", { ascending: false });
+    if (error || !data) return carried;
+
+    const closingOf = row => Array.isArray(row.yoghurt_cups) ? row.yoghurt_cups : (row.yoghurt_cups?.closing || []);
+    const prior = data.find(row => closingOf(row).some(cup => (cup.sealed ?? "") !== "" || (cup.unsealed ?? "") !== ""));
+    if (prior) {
+        closingOf(prior).forEach(cup => {
+            if (cup && cup.size) carried.set(cup.size, cupCount(cup));
+        });
+    }
+    return carried;
+}
+
 async function loadClosingDetails() {
+    const shopId = document.getElementById("closingShop").value;
+    const entryDate = document.getElementById("closingDate").value;
     const { data, error } = await supabaseClient
         .from("closing_details")
         .select("mpesa_amount, cash_notes, cash_coins, yoghurt_cups, yoghurt_flavours")
-        .eq("shop_id", document.getElementById("closingShop").value)
-        .eq("entry_date", document.getElementById("closingDate").value)
+        .eq("shop_id", shopId)
+        .eq("entry_date", entryDate)
         .maybeSingle();
     if (error) {
         document.getElementById("closingMessage").textContent = "Unable to load submitted closing details.";
@@ -341,7 +378,9 @@ async function loadClosingDetails() {
     document.getElementById("closingNotes").textContent = closingMoneyValues.notes.toFixed(2);
     document.getElementById("closingCoins").textContent = closingMoneyValues.coins.toFixed(2);
     const closingCups = Array.isArray(details.yoghurt_cups) ? details.yoghurt_cups : details.yoghurt_cups?.closing || [];
-    renderYoghurtCupSizes(closingCups);
+    const morningCups = cupsBySize(Array.isArray(details.yoghurt_cups) ? [] : details.yoghurt_cups?.stockIn || []);
+    const carriedCups = await fetchCarriedYoghurtCups(shopId, entryDate);
+    renderYoghurtCupSizes(closingCups, carriedCups, morningCups);
     renderFlavourRemaining(details.yoghurt_flavours || []);
     updateClosingMoneyTotal();
 }
@@ -354,7 +393,7 @@ function renderFlavourRemaining(flavours) {
         : "<li>No flavour counts submitted.</li>";
 }
 
-function renderYoghurtCupSizes(cupSizes) {
+function renderYoghurtCupSizes(cupSizes, carriedCups = new Map(), morningCups = new Map()) {
     const container = document.getElementById("yoghurtClosingRows");
     const presets = [
         { size: "200 ml", price: 50 },
@@ -363,17 +402,20 @@ function renderYoghurtCupSizes(cupSizes) {
         { size: "500 ml", price: 100 },
         { size: "1000 ml", price: 190 }
     ];
-    const submitted = presets.map(preset => {
+    const rows = presets.map(preset => {
         const saved = cupSizes.find(cup => cup.size === preset.size) || {};
-        return { ...preset, sealed: saved.sealed, unsealed: saved.unsealed };
-    }).filter(cup => (cup.sealed !== undefined && cup.sealed !== "") || (cup.unsealed !== undefined && cup.unsealed !== ""));
+        const counted = (saved.sealed !== undefined && saved.sealed !== "") || (saved.unsealed !== undefined && saved.unsealed !== "");
+        const opening = (carriedCups.get(preset.size) || 0) + (morningCups.get(preset.size) || 0);
+        const left = cupCount(saved);
+        const sold = counted ? Math.max(opening - left, 0) : 0;
+        return { ...preset, counted, opening, left, sold, cash: sold * preset.price };
+    }).filter(row => row.counted || row.opening > 0);
 
-    container.innerHTML = submitted.length
-        ? submitted.map(cup => {
-            const sealed = Number(cup.sealed || 0);
-            const loose = Number(cup.unsealed || 0);
-            return `<div class="yoghurt-cup-row read-only"><span class="cup-size-label">${cup.size}</span><span>${sealed} sealed packs</span><span>${loose} loose cups</span><strong>${sealed * 25 + loose} cups left</strong></div>`;
-        }).join("")
+    const cupSalesTotal = rows.reduce((total, row) => total + row.cash, 0);
+
+    container.innerHTML = rows.length
+        ? rows.map(row => `<div class="yoghurt-cup-row read-only"><span class="cup-size-label">${row.size}</span><span>Opening ${row.opening}</span><span>Left ${row.left}</span><strong>Sold ${row.sold}</strong><span>${row.cash.toFixed(2)}</span></div>`).join("")
+            + `<div class="yoghurt-cup-row read-only"><strong>Yoghurt cup sales: ${cupSalesTotal.toFixed(2)}</strong></div>`
         : "<p class=\"section-note\">No cup counts submitted.</p>";
 }
 

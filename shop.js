@@ -13,8 +13,27 @@ const yoghurtCupPresets = [
 const EGGS_PER_TRAY = 30;
 const TWIN_PIECES_PER_PACK = 2;
 const SIMBA_PIECES_PER_PACK = 18;
+const CUPS_PER_SEALED_PACK = 25;
 const yoghurtFlavours = ["Strawberry", "Vanilla", "Blueberry", "Pineapple", "Chocolate"];
 const flavourInputs = new Map();
+
+// Yoghurt cup opening balance for the selected day, per size:
+//   carriedYoghurtCups  = leftover carried from the last saved cup count
+//   morningYoghurtCups   = cups the owner booked in for the selected day
+let carriedYoghurtCups = new Map();
+let morningYoghurtCups = new Map();
+
+function cupCount(entry) {
+    return (Number(entry?.sealed || 0) * CUPS_PER_SEALED_PACK) + Number(entry?.unsealed || 0);
+}
+
+function cupsBySize(rows) {
+    const map = new Map();
+    (rows || []).forEach(entry => {
+        if (entry && entry.size) map.set(entry.size, cupCount(entry));
+    });
+    return map;
+}
 
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
@@ -123,6 +142,28 @@ function trimNumber(value) {
     return Number(value.toFixed(2));
 }
 
+// Cups carried into the selected day per size = the cups left at the most recent
+// earlier closing that has a saved count.
+async function fetchCarriedYoghurtCups(shopId, beforeDateIso) {
+    const carried = new Map();
+    const { data, error } = await supabaseClient
+        .from("closing_details")
+        .select("entry_date, yoghurt_cups")
+        .eq("shop_id", shopId)
+        .lt("entry_date", beforeDateIso)
+        .order("entry_date", { ascending: false });
+    if (error || !data) return carried;
+
+    const closingOf = row => Array.isArray(row.yoghurt_cups) ? row.yoghurt_cups : (row.yoghurt_cups?.closing || []);
+    const prior = data.find(row => closingOf(row).some(cup => (cup.sealed ?? "") !== "" || (cup.unsealed ?? "") !== ""));
+    if (prior) {
+        closingOf(prior).forEach(cup => {
+            if (cup && cup.size) carried.set(cup.size, cupCount(cup));
+        });
+    }
+    return carried;
+}
+
 async function loadClosingDetails() {
     const { data, error } = await supabaseClient
         .from("closing_details")
@@ -132,7 +173,10 @@ async function loadClosingDetails() {
         .maybeSingle();
     if (error) return;
 
+    carriedYoghurtCups = await fetchCarriedYoghurtCups(user.shop_id, entryIso());
     const details = data || {};
+    const morningRows = Array.isArray(details.yoghurt_cups) ? [] : (details.yoghurt_cups?.stockIn || []);
+    morningYoghurtCups = cupsBySize(morningRows);
     document.getElementById("closingMpesa").value = details.mpesa_amount ?? "";
     document.getElementById("closingNotes").value = details.cash_notes ?? "";
     document.getElementById("closingCoins").value = details.cash_coins ?? "";
@@ -151,11 +195,13 @@ function renderYoghurtCupSizes(savedCups) {
     const container = document.getElementById("yoghurtClosingRows");
     const merged = yoghurtCupPresets.map(preset => {
         const saved = savedCups.find(cup => cup.size === preset.size) || {};
-        return { ...preset, sealed: saved.sealed, unsealed: saved.unsealed };
+        const opening = (carriedYoghurtCups.get(preset.size) || 0) + (morningYoghurtCups.get(preset.size) || 0);
+        return { ...preset, sealed: saved.sealed, unsealed: saved.unsealed, opening };
     });
 
-    container.innerHTML = merged.map(cup => `<div class="yoghurt-cup-row" data-price="${cup.price}">
+    container.innerHTML = merged.map(cup => `<div class="yoghurt-cup-row" data-price="${cup.price}" data-opening="${cup.opening}">
         <span class="cup-size-label">${cup.size}</span>
+        <span class="cup-opening-note">Available: ${cup.opening} cups</span>
         <label>Sealed packs: <input type="number" data-field="sealed" value="${cup.sealed ?? ""}" min="0" step="1" placeholder="0"></label>
         <label>Loose cups: <input type="number" data-field="unsealed" value="${cup.unsealed ?? ""}" min="0" max="24" step="1" placeholder="0"></label>
     </div>`).join("");
@@ -171,8 +217,20 @@ function getYoghurtCupRows() {
     }));
 }
 
+// Cups sold per size = opening (carried + booked in) - what remained at closing.
+function getYoghurtCupSales() {
+    const closingRows = getYoghurtCupRows();
+    return yoghurtCupPresets.map(preset => {
+        const row = closingRows.find(entry => entry.size === preset.size);
+        const counted = row && ((row.sealed ?? "") !== "" || (row.unsealed ?? "") !== "");
+        const opening = (carriedYoghurtCups.get(preset.size) || 0) + (morningYoghurtCups.get(preset.size) || 0);
+        const sold = counted ? Math.max(opening - cupCount(row), 0) : 0;
+        return { size: preset.size, price: preset.price, opening, sold, cash: sold * preset.price };
+    });
+}
+
 function getCupCashTotal() {
-    return 0;
+    return getYoghurtCupSales().reduce((total, entry) => total + entry.cash, 0);
 }
 
 function updateClosingMoneyTotal() {
@@ -185,8 +243,11 @@ function updateClosingMoneyTotal() {
         const result = computeProductResult(product);
         return total + (result && !result.error ? result.cash : 0);
     }, 0);
-    const expected = productCash + getCupCashTotal();
+    const cupCash = getCupCashTotal();
+    const expected = productCash + cupCash;
     const difference = received - expected;
+    const yoghurtSalesEl = document.getElementById("yoghurtSalesTotal");
+    if (yoghurtSalesEl) yoghurtSalesEl.textContent = cupCash.toFixed(2);
     document.getElementById("closingCashTotal").textContent = cashTotal.toFixed(2);
     document.getElementById("closingMoneyTotal").textContent = received.toFixed(2);
     document.getElementById("closingExpectedTotal").textContent = expected.toFixed(2);
@@ -412,7 +473,6 @@ async function saveEntries() {
     const today = entryIso();
     const entries = [];
     const cupCash = getCupCashTotal();
-    let yoghurtCashAssigned = false;
 
     for (const p of shopProducts) {
         if (isYoghurt(p)) continue;
@@ -423,24 +483,19 @@ async function saveEntries() {
         }
         if (!result) continue;
 
-        let salesAmount = result.cash;
-        if (isYoghurt(p)) {
-            salesAmount = yoghurtCashAssigned ? null : cupCash;
-            yoghurtCashAssigned = true;
-        }
-
         entries.push({
             shop_id: user.shop_id,
             product_id: p.product_id,
             entry_date: today,
             quantity_out: result.sold,
             secondary_quantity_out: result.remaining,
-            sales_amount: salesAmount,
+            sales_amount: result.cash,
             quantity_out_by_user_id: user.user_id
         });
     }
 
     const flavourEntries = getFlavourRemaining().filter(entry => entry.remaining !== "");
+    const cupsSold = getYoghurtCupSales().reduce((total, entry) => total + entry.sold, 0);
     const yoghurt = shopProducts.find(isYoghurt);
     if (yoghurt && (flavourEntries.length > 0 || cupCash > 0)) {
         const flavourTotal = flavourEntries.reduce((total, entry) => total + Number(entry.remaining), 0);
@@ -448,26 +503,11 @@ async function saveEntries() {
             shop_id: user.shop_id,
             product_id: yoghurt.product_id,
             entry_date: today,
-            quantity_out: null,
+            quantity_out: cupCash > 0 ? cupsSold : null,
             secondary_quantity_out: flavourEntries.length ? flavourTotal : null,
             sales_amount: cupCash > 0 ? cupCash : null,
             quantity_out_by_user_id: user.user_id
         });
-    }
-
-    if (!yoghurtCashAssigned && cupCash > 0) {
-        const yoghurt = shopProducts.find(isYoghurt);
-        if (yoghurt) {
-            entries.push({
-                shop_id: user.shop_id,
-                product_id: yoghurt.product_id,
-                entry_date: today,
-                quantity_out: null,
-                secondary_quantity_out: null,
-                sales_amount: cupCash,
-                quantity_out_by_user_id: user.user_id
-            });
-        }
     }
 
     if (entries.length === 0) {
