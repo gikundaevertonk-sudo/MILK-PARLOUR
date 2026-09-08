@@ -18,13 +18,70 @@ const flavourInputs = new Map();
 
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
+    const entryDateInput = document.getElementById("entryDate");
+    if (entryDateInput) {
+        entryDateInput.value = dayIso();
+        entryDateInput.addEventListener("change", loadProducts);
+    }
     loadProducts();
 }
 
 function dayIso(offsetDays = 0) {
     const date = new Date();
     date.setDate(date.getDate() + offsetDays);
+    // Use the local calendar date, not the UTC one, so late-night entries stay on the right day.
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
     return date.toISOString().split("T")[0];
+}
+
+function entryIso() {
+    return document.getElementById("entryDate")?.value || dayIso();
+}
+
+// Carry-forward opening stock per product for a given day:
+//   most recent saved remaining count  +  any stock-in booked on the days between
+//   that count and the selected day.
+// This keeps the leftover reflecting as the new opening stock the moment a closing
+// balance is saved (no stock-in needed), and stops a missed closing from dropping
+// stock-in that happened on the skipped days.
+async function fetchCarriedBalances(shopId, beforeDateIso) {
+    const carried = new Map();
+    const { data, error } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("product_id, quantity_in, secondary_quantity_out, entry_date")
+        .eq("shop_id", shopId)
+        .lt("entry_date", beforeDateIso)
+        .order("entry_date", { ascending: false });
+    if (error || !data) return carried;
+
+    const rowsByProduct = new Map();
+    data.forEach(row => {
+        if (!rowsByProduct.has(row.product_id)) rowsByProduct.set(row.product_id, []);
+        rowsByProduct.get(row.product_id).push(row);
+    });
+
+    rowsByProduct.forEach((rows, productId) => {
+        // rows are newest-first; the anchor is the latest day that has a saved count.
+        const anchorIndex = rows.findIndex(row => row.secondary_quantity_out != null);
+        if (anchorIndex === -1) {
+            // No closing count has ever been saved: fall back to the total stock-in.
+            const stockInOnly = rows.reduce((sum, row) => sum + Number(row.quantity_in ?? 0), 0);
+            if (stockInOnly !== 0) {
+                carried.set(productId, { remaining: 0, gapStockIn: stockInOnly, date: rows[rows.length - 1].entry_date, noCount: true });
+            }
+            return;
+        }
+        const anchor = rows[anchorIndex];
+        // Rows newer than the anchor are days with no closing count of their own;
+        // any stock-in booked on them still belongs in the opening balance.
+        const gapStockIn = rows.slice(0, anchorIndex).reduce((sum, row) => sum + Number(row.quantity_in ?? 0), 0);
+        carried.set(productId, {
+            remaining: Number(anchor.secondary_quantity_out),
+            gapStockIn,
+            date: anchor.entry_date
+        });
+    });
+    return carried;
 }
 
 function isLiquid(product) {
@@ -71,7 +128,7 @@ async function loadClosingDetails() {
         .from("closing_details")
         .select("mpesa_amount, cash_notes, cash_coins, yoghurt_cups, yoghurt_flavours")
         .eq("shop_id", user.shop_id)
-        .eq("entry_date", dayIso())
+        .eq("entry_date", entryIso())
         .maybeSingle();
     if (error) return;
 
@@ -144,12 +201,12 @@ async function saveClosingDetails() {
         .from("closing_details")
         .select("yoghurt_cups")
         .eq("shop_id", user.shop_id)
-        .eq("entry_date", dayIso())
+        .eq("entry_date", entryIso())
         .maybeSingle();
     const existingCups = Array.isArray(existing?.yoghurt_cups) ? {} : (existing?.yoghurt_cups || {});
     const { error } = await supabaseClient.from("closing_details").upsert({
         shop_id: user.shop_id,
-        entry_date: dayIso(),
+        entry_date: entryIso(),
         mpesa_amount: Number(document.getElementById("closingMpesa").value || 0),
         cash_notes: Number(document.getElementById("closingNotes").value || 0),
         cash_coins: Number(document.getElementById("closingCoins").value || 0),
@@ -184,14 +241,12 @@ async function loadProducts() {
         return;
     }
 
-    const today = dayIso();
-    const yesterday = dayIso(-1);
-    const [todayResult, previousResult] = await Promise.all([
+    const today = entryIso();
+    const [todayResult, carriedByProduct] = await Promise.all([
         supabaseClient.from("daily_stock_entries").select("product_id, quantity_in").eq("shop_id", user.shop_id).eq("entry_date", today),
-        supabaseClient.from("daily_stock_entries").select("product_id, secondary_quantity_out").eq("shop_id", user.shop_id).eq("entry_date", yesterday)
+        fetchCarriedBalances(user.shop_id, today)
     ]);
     const todayEntries = todayResult.data || [];
-    const previousEntries = previousResult.data || [];
 
     const byCategory = new Map();
     shopProducts.forEach(product => {
@@ -204,9 +259,13 @@ async function loadProducts() {
         const heading = `<h2 class="category-heading">${category}</h2>`;
         const cards = items.filter(p => !isYoghurt(p)).map(p => {
         const added = Number(todayEntries.find(entry => entry.product_id === p.product_id)?.quantity_in ?? 0);
-        const carried = Number(previousEntries.find(entry => entry.product_id === p.product_id)?.secondary_quantity_out ?? 0);
         const egg = isEgg(p);
         const packPieces = packPieceCount(p);
+        const carriedInfo = carriedByProduct.get(p.product_id);
+        const priorRemaining = Number(carriedInfo?.remaining ?? 0);
+        const gapStockIn = Number(carriedInfo?.gapStockIn ?? 0);
+        // priorRemaining is stored in pieces/ml; stock-in for eggs is booked in trays.
+        const carried = egg ? priorRemaining + (gapStockIn * EGGS_PER_TRAY) : priorRemaining + gapStockIn;
         const opening = egg ? carried + (added * EGGS_PER_TRAY) : carried + added;
         productOpenings.set(p.product_id, opening);
         const liquid = isLiquid(p);
@@ -222,6 +281,12 @@ async function loadProducts() {
             : packPieces
             ? `Opening stock: ${trimNumber(opening)} pieces${added ? ` (includes ${trimNumber(added)} pieces added this morning)` : ""}`
             : `Opening stock: ${trimNumber(opening)} ${p.unit_label}${added ? ` (includes ${trimNumber(added)} added this morning)` : ""}`;
+        const carriedUnit = egg || packPieces ? "pieces" : p.unit_label;
+        const carryNote = !carriedInfo
+            ? "No earlier saved balance — opening stock is this morning's stock-in only."
+            : carriedInfo.noCount
+                ? `Carried forward: ${trimNumber(carried)} ${carriedUnit} from stock-in (no closing count saved yet)`
+                : `Carried forward: ${trimNumber(carried)} ${carriedUnit} (last count ${carriedInfo.date}${gapStockIn ? ", plus stock added since" : ""})`;
         const priceNote = egg
             ? `1 tray = ${EGGS_PER_TRAY} pieces • Price per piece: ${eggPiecePrice(p).toFixed(2)}`
             : packPieces
@@ -232,6 +297,7 @@ async function loadProducts() {
         return `<div class="product-row">
             <h3>${p.name}</h3>
             <p class="opening-note">${openingNote}</p>
+            <p class="carry-note">${carryNote}</p>
             <p class="price-note">${priceNote}</p>
             ${inputHtml}
             <p class="calc-note" id="calc_${p.product_id}"></p>
@@ -343,7 +409,7 @@ function getFlavourRemaining() {
 }
 
 async function saveEntries() {
-    const today = dayIso();
+    const today = entryIso();
     const entries = [];
     const cupCash = getCupCashTotal();
     let yoghurtCashAssigned = false;

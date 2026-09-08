@@ -5,9 +5,17 @@ if (user) {
     loadShopsForClearing();
 }
 
+function dayIso(offsetDays = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    // Use the local calendar date, not the UTC one.
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().split("T")[0];
+}
+
 async function loadShopsForClearing() {
     const select = document.getElementById("clearShop");
-    const today = new Date().toISOString().split("T")[0];
+    const today = dayIso();
     document.getElementById("clearStartDate").value = today;
     document.getElementById("clearEndDate").value = today;
     const { data, error } = await supabaseClient.from("shops").select("shop_id, name").order("name");

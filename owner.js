@@ -25,6 +25,14 @@ if (user) {
     loadNotifications();
 }
 
+function dayIso(offsetDays = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offsetDays);
+    // Use the local calendar date, not the UTC one, so late-night entries stay on the right day.
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().split("T")[0];
+}
+
 function showNotification(message) {
     const list = document.getElementById("notificationList");
     if (!list) return;
@@ -67,7 +75,7 @@ function toggleNotifications() {
 }
 
 async function loadNotifications() {
-    const today = new Date().toISOString().split("T")[0];
+    const today = dayIso();
     const { data: subscription } = await supabaseClient.from("subscription").select("expiry_date, is_active").limit(1).single();
     if (subscription?.expiry_date) {
         const daysLeft = Math.ceil((new Date(subscription.expiry_date) - new Date(today)) / 86400000);
@@ -147,7 +155,7 @@ async function loadShopsIntoDropdown() {
     todaySelect.innerHTML = options;
     closingSelect.innerHTML = options;
     productSelect.innerHTML = options;
-    const today = new Date().toISOString().split("T")[0];
+    const today = dayIso();
     document.getElementById("todayDate").value = today;
     document.getElementById("closingDate").value = today;
     loadStockInProducts();
@@ -199,6 +207,41 @@ async function saveDailyEntry(row, shopId, productId, entryDate) {
     loadClosingBalances();
 }
 
+// Carry-forward opening stock per product for a given day:
+//   most recent saved remaining count  +  any stock-in booked on the days between
+//   that count and the selected day. So the leftover reflects as the new opening
+//   stock as soon as a closing balance is saved, and a missed closing does not drop
+//   stock-in that happened on the skipped days.
+async function fetchCarriedBalances(shopId, beforeDateIso) {
+    const carried = new Map();
+    const { data, error } = await supabaseClient
+        .from("daily_stock_entries")
+        .select("product_id, quantity_in, secondary_quantity_out, entry_date")
+        .eq("shop_id", shopId)
+        .lt("entry_date", beforeDateIso)
+        .order("entry_date", { ascending: false });
+    if (error || !data) return carried;
+
+    const rowsByProduct = new Map();
+    data.forEach(row => {
+        if (!rowsByProduct.has(row.product_id)) rowsByProduct.set(row.product_id, []);
+        rowsByProduct.get(row.product_id).push(row);
+    });
+
+    rowsByProduct.forEach((rows, productId) => {
+        // rows are newest-first; anchor on the latest day that has a saved count.
+        const anchorIndex = rows.findIndex(row => row.secondary_quantity_out != null);
+        if (anchorIndex === -1) {
+            const stockInOnly = rows.reduce((sum, row) => sum + Number(row.quantity_in ?? 0), 0);
+            if (stockInOnly !== 0) carried.set(productId, stockInOnly);
+            return;
+        }
+        const gapStockIn = rows.slice(0, anchorIndex).reduce((sum, row) => sum + Number(row.quantity_in ?? 0), 0);
+        carried.set(productId, Number(rows[anchorIndex].secondary_quantity_out) + gapStockIn);
+    });
+    return carried;
+}
+
 async function loadClosingBalances() {
     const shopId = document.getElementById("closingShop").value;
     const entryDate = document.getElementById("closingDate").value;
@@ -206,18 +249,14 @@ async function loadClosingBalances() {
     const message = document.getElementById("closingMessage");
     if (!shopId || !entryDate) return;
 
-    const previousDate = new Date(`${entryDate}T00:00:00`);
-    previousDate.setDate(previousDate.getDate() - 1);
-    const previousDateIso = previousDate.toISOString().split("T")[0];
-
-    const [assignmentResult, entryResult, previousResult] = await Promise.all([
+    const [assignmentResult, entryResult, previousByProduct] = await Promise.all([
         supabaseClient.from("shop_products").select("product_id, products(name, unit_label, unit_price, category)").eq("shop_id", shopId).order("product_id"),
         supabaseClient.from("daily_stock_entries").select("product_id, quantity_in, quantity_out, secondary_quantity_out, sales_amount").eq("shop_id", shopId).eq("entry_date", entryDate),
-        supabaseClient.from("daily_stock_entries").select("product_id, secondary_quantity_out").eq("shop_id", shopId).eq("entry_date", previousDateIso)
+        fetchCarriedBalances(shopId, entryDate)
     ]);
 
     tbody.innerHTML = "";
-    if (assignmentResult.error || entryResult.error || previousResult.error || !assignmentResult.data) {
+    if (assignmentResult.error || entryResult.error || !assignmentResult.data) {
         message.textContent = "Unable to load closing balances.";
         return;
     }
@@ -225,7 +264,6 @@ async function loadClosingBalances() {
     message.textContent = "";
     closingSalesTotal = 0;
     const entriesByProduct = new Map((entryResult.data || []).map(entry => [entry.product_id, entry]));
-    const previousByProduct = new Map((previousResult.data || []).map(entry => [entry.product_id, entry]));
 
     if (assignmentResult.data.length === 0) {
         tbody.innerHTML = "<tr><td colspan='7'>No products are assigned to this shop.</td></tr>";
@@ -242,7 +280,7 @@ async function loadClosingBalances() {
         const product = assignment.products;
         const entry = entriesByProduct.get(assignment.product_id);
         const added = Number(entry?.quantity_in ?? 0);
-        const carried = Number(previousByProduct.get(assignment.product_id)?.secondary_quantity_out ?? 0);
+        const carried = Number(previousByProduct.get(assignment.product_id) ?? 0);
         const opening = carried + added;
         const sold = entry?.quantity_out ?? "";
         const remaining = entry?.secondary_quantity_out ?? "";
@@ -377,7 +415,7 @@ async function saveShopProductAssignments() {
 }
 
 function initializeExpenses() {
-    const today = new Date().toISOString().split("T")[0];
+    const today = dayIso();
     document.getElementById("expenseDate").value = today;
     document.getElementById("expenseStart").value = today.slice(0, 8) + "01";
     document.getElementById("expenseEnd").value = today;
@@ -505,9 +543,7 @@ async function loadStockInProducts() {
 }
 
 async function getYesterdayYoghurtFlavours(shopId) {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const key = `milkParlorClosing:${shopId}:${yesterday.toISOString().split("T")[0]}`;
+    const key = `milkParlorClosing:${shopId}:${dayIso(-1)}`;
     const details = JSON.parse(localStorage.getItem(key) || "{}");
     const carried = {};
     (details.yoghurtFlavours || []).forEach(entry => {
@@ -518,7 +554,7 @@ async function getYesterdayYoghurtFlavours(shopId) {
 
 async function saveStockIn() {
     const shopId = document.getElementById("stockInShop").value;
-    const today = new Date().toISOString().split("T")[0];
+    const today = dayIso();
 
     const { data: products } = await supabaseClient
         .from("products")
