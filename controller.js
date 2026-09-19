@@ -1,6 +1,7 @@
 const user = requireRole("Controller");
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
+    checkSubscriptionValidity();
     loadSubscription();
     loadShopsForClearing();
 }
@@ -11,6 +12,50 @@ function dayIso(offsetDays = 0) {
     // Use the local calendar date, not the UTC one.
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
     return date.toISOString().split("T")[0];
+}
+
+async function checkSubscriptionValidity() {
+    const { data: subscription, error } = await supabaseClient
+        .from("subscription")
+        .select("expiry_date, is_active")
+        .limit(1)
+        .single();
+
+    if (error || !subscription) return;
+
+    const today = dayIso();
+    const isExpired = subscription.expiry_date < today;
+    const isInactive = !subscription.is_active;
+
+    if (isExpired || isInactive) {
+        const dashboardSections = document.querySelectorAll(".dashboard-section");
+        dashboardSections.forEach(section => section.style.display = "none");
+
+        const blockerMsg = document.createElement("div");
+        blockerMsg.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            max-width: 500px;
+        `;
+        blockerMsg.innerHTML = `
+            <h2 style="color: #d32f2f; margin: 0 0 20px 0;">System Blocked</h2>
+            <p style="margin: 0 0 10px 0; font-size: 16px;">
+                ${isExpired ? `Subscription expired on ${subscription.expiry_date}.` : "Subscription is inactive."}
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #666;">
+                Contact the system administrator to renew or reactivate.
+            </p>
+        `;
+        document.body.appendChild(blockerMsg);
+    }
 }
 
 async function loadShopsForClearing() {
@@ -136,6 +181,17 @@ async function loadSubscription() {
 async function updateSubscription() {
     const newDate = document.getElementById("newExpiryDate").value;
     const isActive = document.getElementById("isActiveCheckbox").checked;
+
+    if (!newDate) {
+        document.getElementById("subMessage").textContent = "Expiry date is required.";
+        return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    if (newDate < today) {
+        document.getElementById("subMessage").textContent = "Subscription date cannot be in the past.";
+        return;
+    }
 
     const { data, error: lookupError } = await supabaseClient.from("subscription").select("subscription_id").limit(1).single();
     if (lookupError || !data) {

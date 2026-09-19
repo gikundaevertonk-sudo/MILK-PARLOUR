@@ -37,6 +37,7 @@ function cupsBySize(rows) {
 
 if (user) {
     document.getElementById("welcomeMsg").textContent = `Welcome, ${user.display_name}`;
+    checkSubscriptionValidity();
     const entryDateInput = document.getElementById("entryDate");
     if (entryDateInput) {
         entryDateInput.value = dayIso();
@@ -51,6 +52,50 @@ function dayIso(offsetDays = 0) {
     // Use the local calendar date, not the UTC one, so late-night entries stay on the right day.
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
     return date.toISOString().split("T")[0];
+}
+
+async function checkSubscriptionValidity() {
+    const { data: subscription, error } = await supabaseClient
+        .from("subscription")
+        .select("expiry_date, is_active")
+        .limit(1)
+        .single();
+
+    if (error || !subscription) return;
+
+    const today = dayIso();
+    const isExpired = subscription.expiry_date < today;
+    const isInactive = !subscription.is_active;
+
+    if (isExpired || isInactive) {
+        const dashboardSections = document.querySelectorAll(".dashboard-section");
+        dashboardSections.forEach(section => section.style.display = "none");
+
+        const blockerMsg = document.createElement("div");
+        blockerMsg.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10000;
+            max-width: 500px;
+        `;
+        blockerMsg.innerHTML = `
+            <h2 style="color: #d32f2f; margin: 0 0 20px 0;">System Blocked</h2>
+            <p style="margin: 0 0 10px 0; font-size: 16px;">
+                ${isExpired ? `Subscription expired on ${subscription.expiry_date}.` : "Subscription is inactive."}
+            </p>
+            <p style="margin: 0; font-size: 14px; color: #666;">
+                Contact the system administrator to renew or reactivate.
+            </p>
+        `;
+        document.body.appendChild(blockerMsg);
+    }
 }
 
 function entryIso() {
